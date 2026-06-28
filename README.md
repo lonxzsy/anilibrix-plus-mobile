@@ -63,7 +63,7 @@ AnilibrixPlus — это полнофункциональное приложен
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/ваш-username/anilibrix-plus-mobile.git
+git clone https://github.com/lonxzsy/anilibrix-plus-mobile.git
 cd anilibrix-plus-mobile
 ```
 
