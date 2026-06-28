@@ -63,8 +63,8 @@ AnilibrixPlus — это полнофункциональное приложен
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/ваш-username/md3-anilibrix.git
-cd md3-anilibrix
+git clone https://github.com/ваш-username/anilibrix-plus-mobile.git
+cd anilibrix-plus-mobile
 ```
 
 2. Откройте проект в Android Studio
