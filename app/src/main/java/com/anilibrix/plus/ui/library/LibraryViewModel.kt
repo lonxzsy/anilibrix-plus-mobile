@@ -2,10 +2,6 @@ package com.anilibrix.plus.ui.library
 
 import androidx.lifecycle.viewModelScope
 import com.anilibrix.plus.core.architecture.BaseViewModel
-import com.anilibrix.plus.domain.model.FavoriteTitle
-import com.anilibrix.plus.domain.model.HistoryEntry
-import com.anilibrix.plus.domain.model.Playlist
-import com.anilibrix.plus.domain.model.PlaylistItem
 import com.anilibrix.plus.domain.repository.LocalRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -28,21 +24,39 @@ class LibraryViewModel @Inject constructor(
             is LibraryIntent.SelectTab -> {
                 updateState { copy(selectedTab = intent.index) }
             }
+            is LibraryIntent.UpdateQuery -> {
+                updateState { copy(query = intent.query) }
+            }
+            is LibraryIntent.SetSort -> {
+                updateState { copy(sort = intent.sort) }
+            }
             is LibraryIntent.RemoveFavorite -> {
                 viewModelScope.launch {
-                    localRepository.removeFavorite(intent.titleId)
+                    localRepository.removeFavorite(intent.item.titleId)
+                    setPendingUndo(
+                        message = "Удалено из избранного",
+                        item = DeletedLibraryItem.Favorite(intent.item)
+                    )
                     loadFavorites()
                 }
             }
             is LibraryIntent.RemoveWatchLater -> {
                 viewModelScope.launch {
-                    localRepository.removeWatchLater(intent.titleId)
+                    localRepository.removeWatchLater(intent.item.titleId)
+                    setPendingUndo(
+                        message = "Удалено из «Буду смотреть»",
+                        item = DeletedLibraryItem.WatchLater(intent.item)
+                    )
                     loadWatchLater()
                 }
             }
             is LibraryIntent.RemoveHistory -> {
                 viewModelScope.launch {
-                    localRepository.deleteHistory(intent.titleId, intent.episodeId)
+                    localRepository.deleteHistory(intent.entry.titleId, intent.entry.episodeId)
+                    setPendingUndo(
+                        message = "Запись удалена из истории",
+                        item = DeletedLibraryItem.History(intent.entry)
+                    )
                     loadHistory()
                 }
             }
@@ -66,7 +80,50 @@ class LibraryViewModel @Inject constructor(
                     loadPlaylists()
                 }
             }
+            LibraryIntent.UndoLastRemoval -> undoLastRemoval()
+            LibraryIntent.DismissUndo -> updateState { copy(pendingUndo = null) }
             LibraryIntent.Refresh -> loadData()
+        }
+    }
+
+    private fun setPendingUndo(message: String, item: DeletedLibraryItem) {
+        updateState {
+            copy(
+                pendingUndo = PendingLibraryUndo(
+                    token = System.currentTimeMillis(),
+                    message = message,
+                    item = item
+                )
+            )
+        }
+    }
+
+    private fun undoLastRemoval() {
+        viewModelScope.launch {
+            when (val deleted = uiState.value.pendingUndo?.item) {
+                is DeletedLibraryItem.Favorite -> {
+                    localRepository.addFavorite(
+                        deleted.item.titleId,
+                        deleted.item.titleName,
+                        deleted.item.posterUrl
+                    )
+                    loadFavorites()
+                }
+                is DeletedLibraryItem.WatchLater -> {
+                    localRepository.addWatchLater(
+                        deleted.item.titleId,
+                        deleted.item.titleName,
+                        deleted.item.posterUrl
+                    )
+                    loadWatchLater()
+                }
+                is DeletedLibraryItem.History -> {
+                    localRepository.addHistory(deleted.entry)
+                    loadHistory()
+                }
+                null -> Unit
+            }
+            updateState { copy(pendingUndo = null) }
         }
     }
 

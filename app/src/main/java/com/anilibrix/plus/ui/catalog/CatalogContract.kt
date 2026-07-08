@@ -1,6 +1,8 @@
 package com.anilibrix.plus.ui.catalog
 
 import androidx.compose.runtime.Immutable
+import com.anilibrix.plus.domain.model.CatalogSort
+import com.anilibrix.plus.domain.model.CatalogStatus
 import com.anilibrix.plus.domain.model.ReleaseType
 import com.anilibrix.plus.domain.model.SeasonName
 import com.anilibrix.plus.domain.model.Title
@@ -14,11 +16,18 @@ data class CatalogFilter(
     val year: Int? = null,
     val type: ReleaseType? = null,
     val season: SeasonName? = null,
-    val status: String? = null,
+    val status: CatalogStatus? = null,
+    val sort: CatalogSort = CatalogSort.UPDATED,
     val viewMode: ViewMode = ViewMode.GRID
 ) {
     val hasActiveFilters: Boolean
-        get() = search.isNotEmpty() || genres.isNotEmpty() || year != null || type != null || season != null || status != null
+        get() = search.isNotEmpty() ||
+            genres.isNotEmpty() ||
+            year != null ||
+            type != null ||
+            season != null ||
+            status != null ||
+            sort != CatalogSort.UPDATED
 }
 
 @Immutable
@@ -30,6 +39,7 @@ data class CatalogUiState(
     val currentPage: Int = 1,
     val hasMore: Boolean = true,
     val suggestions: List<String> = emptyList(),
+    val searchHistory: List<String> = emptyList(),
     val error: String? = null,
     val loadingMore: Boolean = false
 )
@@ -43,4 +53,5 @@ sealed interface CatalogIntent {
     data class ToggleViewMode(val mode: ViewMode) : CatalogIntent
     data class SelectSuggestion(val suggestion: String) : CatalogIntent
     data object ClearSearch : CatalogIntent
+    data object ClearSearchHistory : CatalogIntent
 }

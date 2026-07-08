@@ -14,10 +14,10 @@ data class TrendingUiState(
 )
 
 enum class SortBy(val displayName: String) {
-    SCORE("Score"),
-    POPULARITY("Popularity"),
-    RANK("Rank"),
-    TITLE("Title")
+    SCORE("Оценка"),
+    POPULARITY("Популярность"),
+    RANK("Ранг"),
+    TITLE("Название")
 }
 
 enum class ViewMode {

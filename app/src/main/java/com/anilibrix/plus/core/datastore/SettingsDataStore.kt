@@ -31,6 +31,10 @@ class SettingsDataStore @Inject constructor(
         private val CATALOG_FILTER_YEAR = intPreferencesKey("catalog_filter_year")
         private val CATALOG_FILTER_TYPE = stringPreferencesKey("catalog_filter_type")
         private val CATALOG_FILTER_SEASON = stringPreferencesKey("catalog_filter_season")
+        private val CATALOG_FILTER_STATUS = stringPreferencesKey("catalog_filter_status")
+        private val CATALOG_SORT = stringPreferencesKey("catalog_sort")
+        private val CATALOG_VIEW_MODE = stringPreferencesKey("catalog_view_mode")
+        private val CATALOG_SEARCH_HISTORY = stringPreferencesKey("catalog_search_history")
         private val NOTIFICATIONS_NEW_EPISODES_ENABLED = booleanPreferencesKey("notifications_new_episodes_enabled")
         private val NOTIFICATIONS_APP_UPDATES_ENABLED = booleanPreferencesKey("notifications_app_updates_enabled")
         private val NOTIFICATIONS_SYNC_STATUS_ENABLED = booleanPreferencesKey("notifications_sync_status_enabled")
@@ -51,6 +55,16 @@ class SettingsDataStore @Inject constructor(
     val catalogFilterYear: Flow<Int?> = dataStore.data.map { it[CATALOG_FILTER_YEAR] }
     val catalogFilterType: Flow<String?> = dataStore.data.map { it[CATALOG_FILTER_TYPE] }
     val catalogFilterSeason: Flow<String?> = dataStore.data.map { it[CATALOG_FILTER_SEASON] }
+    val catalogFilterStatus: Flow<String?> = dataStore.data.map { it[CATALOG_FILTER_STATUS] }
+    val catalogSort: Flow<String> = dataStore.data.map { it[CATALOG_SORT] ?: "UPDATED" }
+    val catalogViewMode: Flow<String> = dataStore.data.map { it[CATALOG_VIEW_MODE] ?: "GRID" }
+    val catalogSearchHistory: Flow<List<String>> = dataStore.data.map { prefs ->
+        prefs[CATALOG_SEARCH_HISTORY]
+            ?.split("\n")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+    }
     val notificationsNewEpisodesEnabled: Flow<Boolean> = dataStore.data.map { it[NOTIFICATIONS_NEW_EPISODES_ENABLED] ?: true }
     val notificationsAppUpdatesEnabled: Flow<Boolean> = dataStore.data.map { it[NOTIFICATIONS_APP_UPDATES_ENABLED] ?: true }
     val notificationsSyncStatusEnabled: Flow<Boolean> = dataStore.data.map { it[NOTIFICATIONS_SYNC_STATUS_ENABLED] ?: true }
@@ -110,6 +124,33 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun setCatalogFilterSeason(season: String?) {
         dataStore.edit { if (season != null) it[CATALOG_FILTER_SEASON] = season else it.remove(CATALOG_FILTER_SEASON) }
+    }
+
+    suspend fun setCatalogFilterStatus(status: String?) {
+        dataStore.edit { if (status != null) it[CATALOG_FILTER_STATUS] = status else it.remove(CATALOG_FILTER_STATUS) }
+    }
+
+    suspend fun setCatalogSort(sort: String) {
+        dataStore.edit { it[CATALOG_SORT] = sort }
+    }
+
+    suspend fun setCatalogViewMode(viewMode: String) {
+        dataStore.edit { it[CATALOG_VIEW_MODE] = viewMode }
+    }
+
+    suspend fun setCatalogSearchHistory(history: List<String>) {
+        dataStore.edit {
+            val encoded = history
+                .map { item -> item.replace("\n", " ").trim() }
+                .filter { item -> item.isNotEmpty() }
+                .take(10)
+                .joinToString("\n")
+            if (encoded.isBlank()) {
+                it.remove(CATALOG_SEARCH_HISTORY)
+            } else {
+                it[CATALOG_SEARCH_HISTORY] = encoded
+            }
+        }
     }
 
     suspend fun setNotificationsNewEpisodesEnabled(enabled: Boolean) {

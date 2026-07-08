@@ -39,11 +39,11 @@ data class BottomNavItem(
 )
 
 val bottomNavItems = listOf(
-    BottomNavItem("Home", Screen.Home.route, Icons.Filled.Home, Icons.Outlined.Home),
-    BottomNavItem("Catalog", Screen.Catalog.route, Icons.Filled.Search, Icons.Outlined.Search),
-    BottomNavItem("Schedule", Screen.Schedule.route, Icons.Filled.Schedule, Icons.Outlined.Schedule),
-    BottomNavItem("Library", Screen.Library.route, Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
-    BottomNavItem("Profile", Screen.Profile.route, Icons.Filled.Person, Icons.Outlined.Person)
+    BottomNavItem("Главная", Screen.Home.route, Icons.Filled.Home, Icons.Outlined.Home),
+    BottomNavItem("Каталог", Screen.Catalog.route, Icons.Filled.Search, Icons.Outlined.Search),
+    BottomNavItem("Расписание", Screen.Schedule.route, Icons.Filled.Schedule, Icons.Outlined.Schedule),
+    BottomNavItem("Библиотека", Screen.Library.route, Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
+    BottomNavItem("Профиль", Screen.Profile.route, Icons.Filled.Person, Icons.Outlined.Person)
 )
 
 @Composable

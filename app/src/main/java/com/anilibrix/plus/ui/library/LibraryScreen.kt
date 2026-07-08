@@ -1,6 +1,5 @@
 package com.anilibrix.plus.ui.library
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,12 +42,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +61,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,23 +80,43 @@ fun LibraryScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val tabs = listOf("Избранное", "Буду смотреть", "История", "Плейлисты")
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        if (state.continueWatching.isNotEmpty()) {
-            ContinueWatchingSection(
-                items = state.continueWatching,
-                onPlayEpisode = onPlayEpisode,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+    LaunchedEffect(state.pendingUndo?.token) {
+        val undo = state.pendingUndo ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = undo.message,
+            actionLabel = "Отменить",
+            withDismissAction = true
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.handleIntent(LibraryIntent.UndoLastRemoval)
+        } else {
+            viewModel.handleIntent(LibraryIntent.DismissUndo)
         }
+    }
 
-        ScrollableTabRow(
-            selectedTabIndex = state.selectedTab,
-            containerColor = MaterialTheme.colorScheme.surface,
-            edgePadding = 8.dp
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
+            if (state.continueWatching.isNotEmpty()) {
+                ContinueWatchingSection(
+                    items = state.continueWatching,
+                    onPlayEpisode = onPlayEpisode,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            ScrollableTabRow(
+                selectedTabIndex = state.selectedTab,
+                containerColor = MaterialTheme.colorScheme.surface,
+                edgePadding = 8.dp
+            ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = state.selectedTab == index,
@@ -119,34 +142,86 @@ fun LibraryScreen(
                 }
             }
 
+            LibraryControls(
+                query = state.query,
+                sort = state.sort,
+                onQueryChange = { viewModel.handleIntent(LibraryIntent.UpdateQuery(it)) },
+                onSortChange = { viewModel.handleIntent(LibraryIntent.SetSort(it)) }
+            )
+
             when (state.selectedTab) {
                 0 -> FavoritesTab(
-                    items = state.favorites,
+                    items = state.favorites.filteredFavoriteItems(state.query, state.sort),
                     onRemove = { viewModel.handleIntent(LibraryIntent.RemoveFavorite(it)) },
                     onTitleClick = onTitleClick
                 )
                 1 -> WatchLaterTab(
-                    items = state.watchLater,
+                    items = state.watchLater.filteredFavoriteItems(state.query, state.sort),
                     onRemove = { viewModel.handleIntent(LibraryIntent.RemoveWatchLater(it)) },
                     onTitleClick = onTitleClick
                 )
                 2 -> HistoryTab(
-                    items = state.history,
-                    onRemove = { titleId, episodeId ->
-                        viewModel.handleIntent(LibraryIntent.RemoveHistory(titleId, episodeId))
-                    },
+                    items = state.history.filteredHistory(state.query, state.sort),
+                    onRemove = { entry -> viewModel.handleIntent(LibraryIntent.RemoveHistory(entry)) },
                     onPlayEpisode = onPlayEpisode
                 )
                 3 -> PlaylistsTab(
-                    playlists = state.playlists,
+                    playlists = state.playlists.filteredPlaylists(state.query, state.sort),
                     expandedId = state.expandedPlaylistId,
                     onToggle = { viewModel.handleIntent(LibraryIntent.TogglePlaylist(it)) },
                     onCreate = { viewModel.handleIntent(LibraryIntent.CreatePlaylist(it)) },
-                    onDelete = { viewModel.handleIntent(LibraryIntent.DeletePlaylist(it)) }
+                    onDelete = { viewModel.handleIntent(LibraryIntent.DeletePlaylist(it)) },
+                    onTitleClick = onTitleClick
                 )
             }
         }
     }
+}
+
+@Composable
+private fun LibraryControls(
+    query: String,
+    sort: LibrarySort,
+    onQueryChange: (String) -> Unit,
+    onSortChange: (LibrarySort) -> Unit
+) {
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            placeholder = { Text("Фильтр") }
+        )
+        Box {
+            TextButton(onClick = { sortMenuExpanded = true }) {
+                Text(sort.displayName)
+            }
+            DropdownMenu(
+                expanded = sortMenuExpanded,
+                onDismissRequest = { sortMenuExpanded = false }
+            ) {
+                LibrarySort.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.displayName) },
+                        onClick = {
+                            onSortChange(option)
+                            sortMenuExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun ContinueWatchingSection(
@@ -234,7 +309,7 @@ private fun ContinueWatchingSection(
 @Composable
 private fun FavoritesTab(
     items: List<FavoriteItem>,
-    onRemove: (Long) -> Unit,
+    onRemove: (FavoriteItem) -> Unit,
     onTitleClick: (Long) -> Unit
 ) {
     if (items.isEmpty()) {
@@ -248,7 +323,7 @@ private fun FavoritesTab(
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
                         if (value == SwipeToDismissBoxValue.EndToStart) {
-                            onRemove(item.titleId)
+                            onRemove(item)
                             true
                         } else false
                     }
@@ -266,7 +341,7 @@ private fun FavoritesTab(
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Delete",
+                                contentDescription = "Удалить",
                                 tint = MaterialTheme.colorScheme.onError
                             )
                         }
@@ -315,7 +390,7 @@ private fun FavoritesTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = item.titleName.ifBlank { "Title #${item.titleId}" },
+                                    text = item.titleName.ifBlank { "Тайтл #${item.titleId}" },
                                     style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -333,7 +408,7 @@ private fun FavoritesTab(
 @Composable
 private fun WatchLaterTab(
     items: List<FavoriteItem>,
-    onRemove: (Long) -> Unit,
+    onRemove: (FavoriteItem) -> Unit,
     onTitleClick: (Long) -> Unit
 ) {
     if (items.isEmpty()) {
@@ -347,7 +422,7 @@ private fun WatchLaterTab(
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
                         if (value == SwipeToDismissBoxValue.EndToStart) {
-                            onRemove(item.titleId)
+                            onRemove(item)
                             true
                         } else false
                     }
@@ -365,7 +440,7 @@ private fun WatchLaterTab(
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Delete",
+                                contentDescription = "Удалить",
                                 tint = MaterialTheme.colorScheme.onError
                             )
                         }
@@ -414,7 +489,7 @@ private fun WatchLaterTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = item.titleName.ifBlank { "Title #${item.titleId}" },
+                                    text = item.titleName.ifBlank { "Тайтл #${item.titleId}" },
                                     style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -432,7 +507,7 @@ private fun WatchLaterTab(
 @Composable
 private fun HistoryTab(
     items: List<HistoryEntry>,
-    onRemove: (Long, Long) -> Unit,
+    onRemove: (HistoryEntry) -> Unit,
     onPlayEpisode: (Long, Long) -> Unit
 ) {
     if (items.isEmpty()) {
@@ -446,7 +521,7 @@ private fun HistoryTab(
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
                         if (value == SwipeToDismissBoxValue.EndToStart) {
-                            onRemove(entry.titleId, entry.episodeId)
+                            onRemove(entry)
                             true
                         } else false
                     }
@@ -464,7 +539,7 @@ private fun HistoryTab(
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Delete",
+                                contentDescription = "Удалить",
                                 tint = MaterialTheme.colorScheme.onError
                             )
                         }
@@ -529,7 +604,8 @@ private fun PlaylistsTab(
     expandedId: Long?,
     onToggle: (Long) -> Unit,
     onCreate: (String) -> Unit,
-    onDelete: (Long) -> Unit
+    onDelete: (Long) -> Unit,
+    onTitleClick: (Long) -> Unit
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
@@ -628,7 +704,7 @@ private fun PlaylistsTab(
                                 IconButton(onClick = { onDelete(playlist.id) }) {
                                     Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "Delete",
+                                        contentDescription = "Удалить",
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 }
@@ -639,6 +715,7 @@ private fun PlaylistsTab(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clickable { onTitleClick(item.titleId) }
                                             .padding(vertical = 4.dp, horizontal = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -655,6 +732,47 @@ private fun PlaylistsTab(
                 }
             }
         }
+    }
+}
+
+private fun List<FavoriteItem>.filteredFavoriteItems(
+    query: String,
+    sort: LibrarySort
+): List<FavoriteItem> {
+    val filtered = filter { item ->
+        query.isBlank() || item.titleName.contains(query, ignoreCase = true)
+    }
+    return when (sort) {
+        LibrarySort.RECENT -> filtered
+        LibrarySort.TITLE -> filtered.sortedBy { it.titleName.lowercase() }
+    }
+}
+
+private fun List<HistoryEntry>.filteredHistory(
+    query: String,
+    sort: LibrarySort
+): List<HistoryEntry> {
+    val filtered = filter { item ->
+        query.isBlank() || item.titleName.contains(query, ignoreCase = true)
+    }
+    return when (sort) {
+        LibrarySort.RECENT -> filtered.sortedByDescending { it.watchedAt }
+        LibrarySort.TITLE -> filtered.sortedBy { it.titleName.lowercase() }
+    }
+}
+
+private fun List<Playlist>.filteredPlaylists(
+    query: String,
+    sort: LibrarySort
+): List<Playlist> {
+    val filtered = filter { playlist ->
+        query.isBlank() ||
+            playlist.name.contains(query, ignoreCase = true) ||
+            playlist.items.any { it.titleName.contains(query, ignoreCase = true) }
+    }
+    return when (sort) {
+        LibrarySort.RECENT -> filtered.sortedByDescending { it.createdAt }
+        LibrarySort.TITLE -> filtered.sortedBy { it.name.lowercase() }
     }
 }
 

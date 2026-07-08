@@ -5,6 +5,7 @@ import com.anilibrix.plus.domain.model.Episode
 import com.anilibrix.plus.domain.model.FranchiseItem
 import com.anilibrix.plus.domain.model.MalAnime
 import com.anilibrix.plus.domain.model.MalCharacter
+import com.anilibrix.plus.domain.model.Playlist
 import com.anilibrix.plus.domain.model.ShikimoriAnime
 import com.anilibrix.plus.domain.model.Title
 import com.anilibrix.plus.domain.model.Torrent
@@ -57,6 +58,9 @@ data class DetailUiState(
     val isFavorite: Boolean = false,
     val isInWatchLater: Boolean = false,
     val userRating: Float = 0f,
+    val playlists: List<Playlist> = emptyList(),
+    val playlistIdsForTitle: Set<Long> = emptySet(),
+    val showPlaylistDialog: Boolean = false,
     val selectedTab: DetailTab = DetailTab.DESCRIPTION,
     val error: String? = null,
     val isLoggedIn: Boolean = false,
@@ -83,6 +87,9 @@ sealed interface DetailIntent {
     data class SetRating(val rating: Float) : DetailIntent
     data object ToggleFavorite : DetailIntent
     data object ToggleWatchLater : DetailIntent
+    data object ShowPlaylistDialog : DetailIntent
+    data object DismissPlaylistDialog : DetailIntent
+    data class TogglePlaylistMembership(val playlistId: Long) : DetailIntent
     data class PlayEpisode(val episode: Episode) : DetailIntent
     data class OpenMagnet(val magnet: String) : DetailIntent
 }

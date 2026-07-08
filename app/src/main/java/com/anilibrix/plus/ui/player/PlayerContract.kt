@@ -12,6 +12,7 @@ data class PlayerUiState(
     val titleId: Long = 0L,
     val posterUrl: String? = null,
     val quality: String = "1080",
+    val availableQualities: List<String> = emptyList(),
     val speed: Float = 1.0f,
     val isPlaying: Boolean = true,
     val currentPosition: Long = 0L,
@@ -25,6 +26,8 @@ data class PlayerUiState(
     val isPiP: Boolean = false,
     val isFullscreen: Boolean = true,
     val subtitlesEnabled: Boolean = false,
+    val subtitleSizeSp: Int = 24,
+    val subtitleColorHex: String = "#FFFFFF",
     val subtitleText: String = "",
     val subtitleCues: List<SubtitleCue> = emptyList(),
     val bufferedPercentage: Int = 0,
@@ -70,6 +73,8 @@ sealed class PlayerIntent {
     data class UpdateDuration(val duration: Long) : PlayerIntent()
     data class UpdateBuffered(val percentage: Int) : PlayerIntent()
     data object ToggleSubtitles : PlayerIntent()
+    data class SetSubtitleSize(val sizeSp: Int) : PlayerIntent()
+    data class SetSubtitleColor(val colorHex: String) : PlayerIntent()
     data class SetVolume(val volume: Float) : PlayerIntent()
     data object ToggleMute : PlayerIntent()
     data class SkipToNext(val episode: Episode) : PlayerIntent()

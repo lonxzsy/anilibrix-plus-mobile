@@ -2,13 +2,15 @@ package com.anilibrix.plus.ui.studio
 
 import com.anilibrix.plus.domain.model.StudioEpisode
 import com.anilibrix.plus.domain.model.StudioResult
+import com.anilibrix.plus.domain.model.StudioVideo
 
 data class StudioSearchUiState(
     val query: String = "",
     val selectedSources: Set<String> = emptySet(),
     val results: Map<String, List<StudioResult>> = emptyMap(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val hasSearched: Boolean = false
 )
 
 data class StudioEpisodesUiState(
@@ -22,7 +24,11 @@ data class StudioEpisodesUiState(
 
 data class StudioPlayerUiState(
     val videoUrl: String = "",
+    val videos: List<StudioVideo> = emptyList(),
+    val selectedQuality: String? = null,
     val isLoading: Boolean = true,
+    val error: String? = null,
+    val retryNonce: Int = 0,
     val isPlaying: Boolean = true,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
@@ -44,8 +50,11 @@ sealed class StudioPlayerIntent {
     data object PlayPause : StudioPlayerIntent()
     data class SeekTo(val position: Long) : StudioPlayerIntent()
     data class SetSpeed(val speed: Float) : StudioPlayerIntent()
+    data class SetQuality(val quality: String?) : StudioPlayerIntent()
     data object ToggleControls : StudioPlayerIntent()
     data object HideControls : StudioPlayerIntent()
+    data object Retry : StudioPlayerIntent()
+    data class ShowPlaybackError(val message: String) : StudioPlayerIntent()
     data class UpdatePosition(val position: Long) : StudioPlayerIntent()
     data class UpdateDuration(val duration: Long) : StudioPlayerIntent()
 }

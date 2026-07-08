@@ -40,8 +40,7 @@ class PlayerViewModel @Inject constructor(
                 posterUrl = posterUrl,
                 isLoading = false,
                 isPlaying = true,
-                quality = "1080",
-                speed = 1.0f,
+                availableQualities = episode.availableQualities(),
                 playbackError = null,
                 isBuffering = false,
                 subtitleText = ""
@@ -49,7 +48,20 @@ class PlayerViewModel @Inject constructor(
         }
         viewModelScope.launch {
             val quality = settingsDataStore.preferredQuality.first()
-            updateState { copy(quality = quality) }
+            val speed = settingsDataStore.playerSpeed.first().toFloatOrNull() ?: 1.0f
+            val subtitlesEnabled = settingsDataStore.playerSubtitlesEnabled.first()
+            val subtitleSize = settingsDataStore.playerSubtitlesSize.first()
+            val subtitleColor = settingsDataStore.playerSubtitlesColor.first()
+            updateState {
+                copy(
+                    quality = quality,
+                    speed = speed.coerceIn(0.25f, 3.0f),
+                    subtitlesEnabled = subtitlesEnabled,
+                    subtitleSizeSp = subtitleSize.coerceIn(14, 48),
+                    subtitleColorHex = subtitleColor,
+                    subtitleText = if (subtitlesEnabled) subtitleAt(currentPosition) else ""
+                )
+            }
             if (restorePosition) {
                 localRepository.getHistory().first().find {
                     it.titleId == titleId && it.episodeId == episode.id
@@ -156,10 +168,20 @@ class PlayerViewModel @Inject constructor(
             is PlayerIntent.UpdateBuffered -> updateState { copy(bufferedPercentage = intent.percentage.coerceIn(0, 100)) }
             PlayerIntent.ToggleSubtitles -> updateState {
                 val enabled = !subtitlesEnabled
+                viewModelScope.launch { settingsDataStore.setPlayerSubtitlesEnabled(enabled) }
                 copy(
                     subtitlesEnabled = enabled,
                     subtitleText = if (enabled) subtitleAt(currentPosition) else ""
                 )
+            }
+            is PlayerIntent.SetSubtitleSize -> {
+                val size = intent.sizeSp.coerceIn(14, 48)
+                updateState { copy(subtitleSizeSp = size) }
+                viewModelScope.launch { settingsDataStore.setPlayerSubtitlesSize(size) }
+            }
+            is PlayerIntent.SetSubtitleColor -> {
+                updateState { copy(subtitleColorHex = intent.colorHex) }
+                viewModelScope.launch { settingsDataStore.setPlayerSubtitlesColor(intent.colorHex) }
             }
             is PlayerIntent.SetVolume -> updateState { copy(volume = intent.volume.coerceIn(0f, 1f)) }
             PlayerIntent.ToggleMute -> updateState { copy(isMuted = !isMuted) }
@@ -260,7 +282,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun setSpeed(speed: Float) {
-        updateState { copy(speed = speed.coerceIn(0.25f, 3.0f)) }
+        val normalized = speed.coerceIn(0.25f, 3.0f)
+        updateState { copy(speed = normalized) }
+        viewModelScope.launch { settingsDataStore.setPlayerSpeed(normalized.toString()) }
     }
 
     private fun toggleControls() {
@@ -516,5 +540,13 @@ class PlayerViewModel @Inject constructor(
         openingTimerJob?.cancel()
         endingTimerJob?.cancel()
         autoAdvanceJob?.cancel()
+    }
+
+    private fun Episode.availableQualities(): List<String> {
+        return buildList {
+            if (!hls480.isNullOrBlank()) add("480")
+            if (!hls720.isNullOrBlank()) add("720")
+            if (!hls1080.isNullOrBlank()) add("1080")
+        }
     }
 }

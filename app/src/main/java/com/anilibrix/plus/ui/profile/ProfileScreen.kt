@@ -35,6 +35,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -144,6 +146,165 @@ fun ProfileScreen(
 
                         SettingsItem(
                             icon = Icons.Default.Info,
+                            title = "Новые серии",
+                            trailing = {
+                                Switch(
+                                    checked = state.notificationsNewEpisodesEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetNotificationsNewEpisodesEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Обновления приложения",
+                            trailing = {
+                                Switch(
+                                    checked = state.notificationsAppUpdatesEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetNotificationsAppUpdatesEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Статус синхронизации",
+                            trailing = {
+                                Switch(
+                                    checked = state.notificationsSyncStatusEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetNotificationsSyncStatusEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Качество по умолчанию",
+                            trailing = {
+                                DropdownSetting(
+                                    value = qualityLabel(state.preferredQuality),
+                                    options = listOf(
+                                        "Auto" to "Авто",
+                                        "480" to "480p",
+                                        "720" to "720p",
+                                        "1080" to "1080p"
+                                    ),
+                                    onSelect = {
+                                        viewModel.onIntent(ProfileIntent.SetPreferredQuality(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Скорость по умолчанию",
+                            trailing = {
+                                DropdownSetting(
+                                    value = "${state.defaultSpeed}x",
+                                    options = listOf(
+                                        0.5f to "0.5x",
+                                        0.75f to "0.75x",
+                                        1.0f to "1x",
+                                        1.25f to "1.25x",
+                                        1.5f to "1.5x",
+                                        2.0f to "2x"
+                                    ),
+                                    onSelect = {
+                                        viewModel.onIntent(ProfileIntent.SetDefaultSpeed(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Субтитры",
+                            trailing = {
+                                Switch(
+                                    checked = state.subtitlesEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetSubtitlesEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Размер субтитров",
+                            trailing = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.onIntent(ProfileIntent.SetSubtitleSize(state.subtitleSize - 2))
+                                        }
+                                    ) { Text("-") }
+                                    Text("${state.subtitleSize} sp")
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.onIntent(ProfileIntent.SetSubtitleSize(state.subtitleSize + 2))
+                                        }
+                                    ) { Text("+") }
+                                }
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Цвет субтитров",
+                            trailing = {
+                                DropdownSetting(
+                                    value = subtitleColorLabel(state.subtitleColor),
+                                    options = listOf(
+                                        "#FFFFFF" to "Белый",
+                                        "#FFD54F" to "Жёлтый",
+                                        "#80DEEA" to "Голубой",
+                                        "#C5E1A5" to "Зелёный"
+                                    ),
+                                    onSelect = {
+                                        viewModel.onIntent(ProfileIntent.SetSubtitleColor(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Кэш: ${formatBytes(state.cacheSizeBytes)}",
+                            trailing = {
+                                TextButton(onClick = { viewModel.onIntent(ProfileIntent.ClearCache) }) {
+                                    Text("Очистить")
+                                }
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Синхронизация",
+                            trailing = {
+                                Text(
+                                    text = state.syncStatus,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
                             title = "О приложении",
                             onClick = {}
                         )
@@ -176,7 +337,7 @@ fun ProfileScreen(
 
                         SettingsItem(
                             icon = Icons.Default.Info,
-                            title = "Issues",
+                            title = "Отчёты об ошибках",
                             onClick = onNavigateToIssues,
                             trailing = {
                                 Icon(
@@ -465,6 +626,51 @@ private fun formatBytes(bytes: Long): String {
         bytes >= 1_048_576 -> String.format("%.2f МБ", bytes / 1_048_576.0)
         bytes >= 1024 -> String.format("%.2f КБ", bytes / 1024.0)
         else -> "$bytes Б"
+    }
+}
+
+@Composable
+private fun <T> DropdownSetting(
+    value: String,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        TextButton(onClick = { expanded = true }) {
+            Text(value)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { (option, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun qualityLabel(quality: String): String {
+    return when (quality) {
+        "Auto" -> "Авто"
+        else -> if (quality.endsWith("p", ignoreCase = true)) quality else "${quality}p"
+    }
+}
+
+private fun subtitleColorLabel(color: String): String {
+    return when (color.uppercase()) {
+        "#FFD54F" -> "Жёлтый"
+        "#80DEEA" -> "Голубой"
+        "#C5E1A5" -> "Зелёный"
+        else -> "Белый"
     }
 }
 

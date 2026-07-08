@@ -218,7 +218,9 @@ fun PlayerController(
                             expanded = showQualityMenu,
                             onToggle = { showQualityMenu = !showQualityMenu },
                             onDismiss = { showQualityMenu = false },
-                            options = listOf("Auto", "480p", "720p", "1080p"),
+                            options = listOf("Auto") + (state.availableQualities.ifEmpty {
+                                listOf("480", "720", "1080")
+                            }).map { "${it}p" },
                             onSelect = { q ->
                                 onQualityChange(q.removeSuffix("p"))
                                 showQualityMenu = false
@@ -291,8 +293,8 @@ fun PlayerController(
         if (state.subtitlesEnabled && state.subtitleText.isNotBlank() && state.playbackError == null) {
             Text(
                 text = state.subtitleText,
-                color = Color.White,
-                fontSize = 18.sp,
+                color = state.subtitleColor(),
+                fontSize = state.subtitleSizeSp.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -302,6 +304,12 @@ fun PlayerController(
             )
         }
     }
+}
+
+private fun PlayerUiState.subtitleColor(): Color {
+    return runCatching {
+        Color(android.graphics.Color.parseColor(subtitleColorHex))
+    }.getOrDefault(Color.White)
 }
 
 private data class SeekFeedback(

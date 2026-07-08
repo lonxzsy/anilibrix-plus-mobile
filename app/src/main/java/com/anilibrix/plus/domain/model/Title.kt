@@ -52,9 +52,9 @@ enum class ReleaseType(val displayName: String) {
     TV("TV"),
     OVA("OVA"),
     ONA("ONA"),
-    MOVIE("Movie"),
-    SPECIAL("Special"),
-    UNKNOWN("Unknown")
+    MOVIE("Фильм"),
+    SPECIAL("Спешл"),
+    UNKNOWN("Неизвестно")
 }
 
 data class Season(

@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -45,9 +47,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +59,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anilibrix.plus.domain.model.MalAnime
+import com.skydoves.landscapist.ImageOptions
+import com.skydoves.landscapist.glide.GlideImage
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,13 +72,55 @@ fun TrendingScreen(
     val state by viewModel.state.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
 
-    LaunchedEffect(listState) {
-        val layoutInfo = listState.layoutInfo
-        if (layoutInfo.visibleItemsInfo.lastOrNull()?.index == layoutInfo.totalItemsCount - 1) {
-            if (!state.isLoadingMore && state.currentPage < state.totalPages) {
-                viewModel.handleIntent(TrendingIntent.LoadNextPage)
+    LaunchedEffect(
+        listState,
+        state.viewMode,
+        state.currentPage,
+        state.totalPages,
+        state.isLoadingMore
+    ) {
+        if (state.viewMode == ViewMode.LIST) {
+            snapshotFlow {
+                val layoutInfo = listState.layoutInfo
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                layoutInfo.totalItemsCount > 0 &&
+                    lastVisibleItem != null &&
+                    lastVisibleItem.index >= layoutInfo.totalItemsCount - 3
             }
+                .distinctUntilChanged()
+                .filter { it }
+                .collect {
+                    if (!state.isLoadingMore && state.currentPage < state.totalPages) {
+                        viewModel.handleIntent(TrendingIntent.LoadNextPage)
+                    }
+                }
+        }
+    }
+
+    LaunchedEffect(
+        gridState,
+        state.viewMode,
+        state.currentPage,
+        state.totalPages,
+        state.isLoadingMore
+    ) {
+        if (state.viewMode == ViewMode.GRID) {
+            snapshotFlow {
+                val layoutInfo = gridState.layoutInfo
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                layoutInfo.totalItemsCount > 0 &&
+                    lastVisibleItem != null &&
+                    lastVisibleItem.index >= layoutInfo.totalItemsCount - 3
+            }
+                .distinctUntilChanged()
+                .filter { it }
+                .collect {
+                    if (!state.isLoadingMore && state.currentPage < state.totalPages) {
+                        viewModel.handleIntent(TrendingIntent.LoadNextPage)
+                    }
+                }
         }
     }
 
@@ -101,11 +151,11 @@ fun TrendingScreen(
                     IconButton(onClick = { viewModel.handleIntent(TrendingIntent.ToggleViewMode) }) {
                         Icon(
                             imageVector = if (state.viewMode == ViewMode.GRID) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
-                            contentDescription = "Toggle view"
+                            contentDescription = "Сменить вид"
                         )
                     }
                     IconButton(onClick = { viewModel.handleIntent(TrendingIntent.Refresh) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
                 }
             )
@@ -126,7 +176,7 @@ fun TrendingScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = state.error ?: "Error",
+                        text = state.error ?: "Ошибка",
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -136,6 +186,7 @@ fun TrendingScreen(
                 }
             } else if (state.viewMode == ViewMode.GRID) {
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(2),
                     contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -145,7 +196,7 @@ fun TrendingScreen(
                         TrendingGridCard(anime = anime, rank = state.items.indexOf(anime) + 1)
                     }
                     if (state.isLoadingMore) {
-                        item {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -204,12 +255,23 @@ private fun TrendingGridCard(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = anime.title,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(8.dp)
-                    )
+                    if (anime.imageUrl != null) {
+                        GlideImage(
+                            imageModel = { anime.imageUrl },
+                            modifier = Modifier.fillMaxSize(),
+                            imageOptions = ImageOptions(
+                                contentScale = ContentScale.Crop,
+                                contentDescription = anime.title
+                            )
+                        )
+                    } else {
+                        Text(
+                            text = anime.title,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
                 }
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
@@ -221,7 +283,7 @@ private fun TrendingGridCard(
                     )
                     if (anime.score != null) {
                         Text(
-                            text = "Score: ${anime.score}",
+                            text = "Оценка: ${anime.score}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -263,6 +325,19 @@ private fun TrendingListCard(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (anime.imageUrl != null) {
+                GlideImage(
+                    imageModel = { anime.imageUrl },
+                    modifier = Modifier
+                        .size(width = 52.dp, height = 72.dp)
+                        .clip(RoundedCornerShape(6.dp)),
+                    imageOptions = ImageOptions(
+                        contentScale = ContentScale.Crop,
+                        contentDescription = anime.title
+                    )
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -288,7 +363,7 @@ private fun TrendingListCard(
                 Row {
                     if (anime.score != null) {
                         Text(
-                            text = "Score: ${anime.score}",
+                            text = "Оценка: ${anime.score}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -296,7 +371,7 @@ private fun TrendingListCard(
                     if (anime.popularity != null) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "Pop: #${anime.popularity}",
+                            text = "Поп: #${anime.popularity}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -304,7 +379,7 @@ private fun TrendingListCard(
                     if (anime.rank != null) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "Rank: ${anime.rank}",
+                            text = "Ранг: ${anime.rank}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

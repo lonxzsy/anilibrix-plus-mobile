@@ -83,7 +83,7 @@ class TrendingViewModel @Inject constructor(
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
-                        error = e.message ?: "Unknown error",
+                        error = e.message ?: "Неизвестная ошибка",
                         isLoading = false,
                         isLoadingMore = false
                     )

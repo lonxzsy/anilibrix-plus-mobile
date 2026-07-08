@@ -141,13 +141,23 @@ fun StudioSearchScreen(
                     CircularProgressIndicator()
                 }
             } else if (state.error != null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = state.error ?: "Error",
+                        text = state.error ?: "Ошибка",
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Проверьте запрос или попробуйте другой источник",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else if (state.results.isEmpty()) {
@@ -156,7 +166,11 @@ fun StudioSearchScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Выберите источник и введите запрос",
+                        text = if (state.hasSearched) {
+                            "Ничего не найдено"
+                        } else {
+                            "Выберите источник и введите запрос"
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -179,6 +193,16 @@ fun StudioSearchScreen(
                                 result = result,
                                 onClick = { onNavigateToEpisodes(source, result.id, result.title) }
                             )
+                        }
+                        if (results.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "Нет результатов в этом источнике",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
                         }
                     }
                 }

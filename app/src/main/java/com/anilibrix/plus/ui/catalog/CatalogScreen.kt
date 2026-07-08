@@ -1,5 +1,7 @@
 package com.anilibrix.plus.ui.catalog
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -21,12 +24,18 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.verticalScroll
 
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,10 +58,14 @@ import com.anilibrix.plus.ui.components.FilterChipsRow
 import com.anilibrix.plus.ui.components.LoadingIndicator
 import com.anilibrix.plus.ui.components.TitleCardGrid
 import com.anilibrix.plus.ui.components.TitleCardList
+import com.anilibrix.plus.domain.model.CatalogSort
+import com.anilibrix.plus.domain.model.CatalogStatus
+import com.anilibrix.plus.domain.model.ReleaseType
+import com.anilibrix.plus.domain.model.SeasonName
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CatalogScreen(
     viewModel: CatalogViewModel = hiltViewModel(),
@@ -62,6 +76,7 @@ fun CatalogScreen(
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
     var searchText by remember { mutableStateOf(state.filter.search) }
+    var showFiltersSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.filter.search) {
         if (searchText != state.filter.search) {
@@ -120,15 +135,16 @@ fun CatalogScreen(
             },
             suggestions = state.suggestions,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            searchHistory = emptyList()
+            searchHistory = state.searchHistory,
+            onClearHistory = { viewModel.onIntent(CatalogIntent.ClearSearchHistory) }
         )
 
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AssistChip(
                 onClick = {
@@ -150,53 +166,51 @@ fun CatalogScreen(
                     )
                 }
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(
+                onClick = { showFiltersSheet = true },
+                label = { Text(if (state.filter.hasActiveFilters) "Фильтры*" else "Фильтры") },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+            )
+            AssistChip(
+                onClick = { onNavigateToStudioSearch(searchText) },
+                label = { Text("Студии") },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+            )
+            if (state.filter.hasActiveFilters) {
                 AssistChip(
-                    onClick = { onNavigateToStudioSearch(searchText) },
-                    label = { Text("Студии") },
+                    onClick = { viewModel.onIntent(CatalogIntent.UpdateFilter(CatalogFilter())) },
+                    label = { Text("Сбросить") },
                     leadingIcon = {
                         Icon(
-                            Icons.Default.Search,
+                            Icons.Default.Close,
                             contentDescription = null,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                     }
                 )
-                if (state.filter.hasActiveFilters) {
-                    AssistChip(
-                        onClick = { viewModel.onIntent(CatalogIntent.UpdateFilter(CatalogFilter())) },
-                        label = { Text("Сбросить") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                        }
-                    )
-                }
             }
         }
 
-        FilterChipsRow(
-            options = listOf(
-                FilterOption("Экшен", "Экшен"),
-                FilterOption("Комедия", "Комедия"),
-                FilterOption("Драма", "Драма"),
-                FilterOption("Фэнтези", "Фэнтези"),
-                FilterOption("Романтика", "Романтика"),
-                FilterOption("Фантастика", "Фантастика")
-            ),
-            selectedIds = state.filter.genres,
-            onSelectionChanged = { ids ->
-                viewModel.onIntent(
-                    CatalogIntent.UpdateFilter(
-                        state.filter.copy(genres = ids)
-                    )
-                )
-            },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+        if (state.filter.hasActiveFilters) {
+            Text(
+                text = "Активно: ${state.filter.summary()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
 
         when {
             state.loading && state.titles.isEmpty() -> {
@@ -312,4 +326,205 @@ fun CatalogScreen(
             }
         }
     }
+
+    if (showFiltersSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFiltersSheet = false }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Фильтры",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                TextButton(
+                    onClick = {
+                        viewModel.onIntent(CatalogIntent.UpdateFilter(CatalogFilter()))
+                    }
+                ) {
+                    Text("Сбросить")
+                }
+            }
+            CatalogFiltersPanel(
+                filter = state.filter,
+                onFilterChange = { filter ->
+                    viewModel.onIntent(CatalogIntent.UpdateFilter(filter))
+                },
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState())
+            )
+        }
+    }
 }
+
+@Composable
+private fun CatalogFiltersPanel(
+    filter: CatalogFilter,
+    onFilterChange: (CatalogFilter) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FilterChipsRow(
+            options = catalogGenreOptions,
+            selectedIds = filter.genres,
+            onSelectionChanged = { ids ->
+                onFilterChange(filter.copy(genres = ids))
+            }
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterDropdownChip(
+                label = "Год",
+                selectedLabel = filter.year?.toString() ?: "Все",
+                options = yearOptions,
+                onSelect = { year -> onFilterChange(filter.copy(year = year)) },
+                modifier = Modifier.weight(1f)
+            )
+            FilterDropdownChip(
+                label = "Тип",
+                selectedLabel = filter.type?.displayName ?: "Все",
+                options = typeOptions,
+                onSelect = { type -> onFilterChange(filter.copy(type = type)) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterDropdownChip(
+                label = "Сезон",
+                selectedLabel = filter.season?.displayNameRu() ?: "Все",
+                options = seasonOptions,
+                onSelect = { season -> onFilterChange(filter.copy(season = season)) },
+                modifier = Modifier.weight(1f)
+            )
+            FilterDropdownChip(
+                label = "Статус",
+                selectedLabel = filter.status?.displayName ?: "Все",
+                options = statusOptions,
+                onSelect = { status -> onFilterChange(filter.copy(status = status)) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        FilterDropdownChip(
+            label = "Сортировка",
+            selectedLabel = filter.sort.displayName,
+            options = sortOptions,
+            onSelect = { sort -> onFilterChange(filter.copy(sort = sort ?: CatalogSort.UPDATED)) }
+        )
+    }
+}
+
+@Composable
+private fun <T> FilterDropdownChip(
+    label: String,
+    selectedLabel: String,
+    options: List<Pair<T?, String>>,
+    onSelect: (T?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        FilterChip(
+            selected = selectedLabel != "Все" && selectedLabel != CatalogSort.UPDATED.displayName,
+            onClick = { expanded = true },
+            label = { Text("$label: $selectedLabel", maxLines = 1) }
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { (value, optionLabel) ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel) },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun CatalogFilter.summary(): String {
+    val parts = buildList {
+        if (search.isNotBlank()) add("поиск «$search»")
+        if (genres.isNotEmpty()) add(genres.joinToString(", "))
+        year?.let { add(it.toString()) }
+        type?.let { add(it.displayName) }
+        season?.let { add(it.displayNameRu()) }
+        status?.let { add(it.displayName) }
+        if (sort != CatalogSort.UPDATED) add(sort.displayName)
+    }
+    return parts.joinToString(" · ")
+}
+
+private fun SeasonName.displayNameRu(): String {
+    return when (this) {
+        SeasonName.WINTER -> "Зима"
+        SeasonName.SPRING -> "Весна"
+        SeasonName.SUMMER -> "Лето"
+        SeasonName.FALL -> "Осень"
+        SeasonName.UNKNOWN -> "Неизвестно"
+    }
+}
+
+private val catalogGenreOptions = listOf(
+    "Экшен",
+    "Приключения",
+    "Комедия",
+    "Драма",
+    "Фэнтези",
+    "Романтика",
+    "Фантастика",
+    "Повседневность",
+    "Спорт",
+    "Мистика",
+    "Ужасы",
+    "Триллер",
+    "Детектив",
+    "Психология",
+    "Музыка",
+    "Исторический",
+    "Меха",
+    "Сверхъестественное",
+    "Сёнен",
+    "Сэйнэн"
+).map { FilterOption(it, it) }
+
+private val yearOptions: List<Pair<Int?, String>> =
+    listOf(null to "Все") + (2026 downTo 1990).map { it to it.toString() }
+
+private val typeOptions: List<Pair<ReleaseType?, String>> =
+    listOf(null to "Все") + ReleaseType.entries
+        .filter { it != ReleaseType.UNKNOWN }
+        .map { it to it.displayName }
+
+private val seasonOptions: List<Pair<SeasonName?, String>> =
+    listOf(null to "Все") + SeasonName.entries
+        .filter { it != SeasonName.UNKNOWN }
+        .map { it to it.displayNameRu() }
+
+private val statusOptions: List<Pair<CatalogStatus?, String>> =
+    listOf(null to "Все") + CatalogStatus.entries.map { it to it.displayName }
+
+private val sortOptions: List<Pair<CatalogSort?, String>> =
+    CatalogSort.entries.map { it to it.displayName }

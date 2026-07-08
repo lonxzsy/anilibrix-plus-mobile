@@ -50,6 +50,9 @@ class TitleDetailViewModel @Inject constructor(
             is DetailIntent.SetRating -> setRating(intent.rating)
             DetailIntent.ToggleFavorite -> toggleFavorite()
             DetailIntent.ToggleWatchLater -> toggleWatchLater()
+            DetailIntent.ShowPlaylistDialog -> _state.update { it.copy(showPlaylistDialog = true) }
+            DetailIntent.DismissPlaylistDialog -> _state.update { it.copy(showPlaylistDialog = false) }
+            is DetailIntent.TogglePlaylistMembership -> togglePlaylistMembership(intent.playlistId)
             is DetailIntent.PlayEpisode -> {}
             is DetailIntent.OpenMagnet -> {}
         }
@@ -92,12 +95,19 @@ class TitleDetailViewModel @Inject constructor(
             val isFav = localRepository.isFavorite(title.id)
             val isWl = localRepository.isInWatchLater(title.id)
             val rating = localRepository.getRating(title.id) ?: 0f
+            val playlists = localRepository.getPlaylists().first()
+            val playlistIds = playlists
+                .filter { playlist -> playlist.items.any { it.titleId == title.id } }
+                .map { it.id }
+                .toSet()
 
             _state.update {
                 it.copy(
                     isFavorite = isFav,
                     isInWatchLater = isWl,
-                    userRating = rating
+                    userRating = rating,
+                    playlists = playlists,
+                    playlistIdsForTitle = playlistIds
                 )
             }
         }
@@ -540,6 +550,31 @@ class TitleDetailViewModel @Inject constructor(
                         anilibriaRepository.removeFromCollection(title.id, CollectionType.WATCH_LATER).collect {}
                     }
                 }
+            }
+        }
+    }
+
+    private fun togglePlaylistMembership(playlistId: Long) {
+        viewModelScope.launch {
+            val title = _state.value.title ?: return@launch
+            val isInPlaylist = playlistId in _state.value.playlistIdsForTitle
+
+            if (isInPlaylist) {
+                localRepository.removePlaylistItem(playlistId, title.id)
+            } else {
+                localRepository.addPlaylistItem(playlistId, title.id, title.name.main)
+            }
+
+            val playlists = localRepository.getPlaylists().first()
+            val playlistIds = playlists
+                .filter { playlist -> playlist.items.any { it.titleId == title.id } }
+                .map { it.id }
+                .toSet()
+            _state.update {
+                it.copy(
+                    playlists = playlists,
+                    playlistIdsForTitle = playlistIds
+                )
             }
         }
     }

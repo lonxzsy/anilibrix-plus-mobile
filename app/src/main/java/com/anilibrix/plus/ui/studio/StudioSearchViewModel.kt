@@ -19,7 +19,9 @@ class StudioSearchViewModel @Inject constructor(
     private val decoderRepository: DecoderRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(StudioSearchUiState())
+    private val _state = MutableStateFlow(
+        StudioSearchUiState(selectedSources = DEFAULT_SOURCES.toSet())
+    )
     val state: StateFlow<StudioSearchUiState> = _state.asStateFlow()
 
     fun handleIntent(intent: StudioSearchIntent) {
@@ -35,15 +37,47 @@ class StudioSearchViewModel @Inject constructor(
         if (current.contains(source)) current.remove(source)
         else current.add(source)
         _state.update { it.copy(selectedSources = current) }
-        search()
+        if (_state.value.query.isNotBlank()) {
+            search()
+        }
     }
 
     private fun search() {
         val currentState = _state.value
-        if (currentState.query.isBlank() || currentState.selectedSources.isEmpty()) return
-        _state.update { it.copy(isLoading = true, error = null, results = emptyMap()) }
+        when {
+            currentState.query.isBlank() -> {
+                _state.update {
+                    it.copy(
+                        error = "Введите запрос для поиска",
+                        hasSearched = true,
+                        results = emptyMap()
+                    )
+                }
+                return
+            }
+            currentState.selectedSources.isEmpty() -> {
+                _state.update {
+                    it.copy(
+                        error = "Выберите хотя бы один источник",
+                        hasSearched = true,
+                        results = emptyMap()
+                    )
+                }
+                return
+            }
+        }
+
+        _state.update {
+            it.copy(
+                isLoading = true,
+                error = null,
+                results = emptyMap(),
+                hasSearched = true
+            )
+        }
 
         val results = mutableMapOf<String, List<StudioResult>>()
+        val errors = mutableListOf<String>()
         var completed = 0
         val total = currentState.selectedSources.size
 
@@ -54,8 +88,20 @@ class StudioSearchViewModel @Inject constructor(
                         synchronized(this@StudioSearchViewModel) {
                             completed++
                             results[source] = emptyList()
+                            errors += "${source}: ${e.message ?: "ошибка поиска"}"
                             if (completed >= total) {
-                                _state.update { it.copy(results = results.toMap(), isLoading = false) }
+                                val hasAnyResult = results.values.any { it.isNotEmpty() }
+                                _state.update {
+                                    it.copy(
+                                        results = results.toMap(),
+                                        isLoading = false,
+                                        error = if (!hasAnyResult && errors.isNotEmpty()) {
+                                            "Не удалось выполнить поиск: ${errors.joinToString("; ")}"
+                                        } else {
+                                            null
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -66,7 +112,18 @@ class StudioSearchViewModel @Inject constructor(
                                     results[source] = networkResult.data
                                     completed++
                                     if (completed >= total) {
-                                        _state.update { it.copy(results = results.toMap(), isLoading = false) }
+                                        val hasAnyResult = results.values.any { it.isNotEmpty() }
+                                        _state.update {
+                                            it.copy(
+                                                results = results.toMap(),
+                                                isLoading = false,
+                                                error = if (!hasAnyResult && errors.isNotEmpty()) {
+                                                    "Не удалось выполнить поиск: ${errors.joinToString("; ")}"
+                                                } else {
+                                                    null
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -74,8 +131,20 @@ class StudioSearchViewModel @Inject constructor(
                                 synchronized(this@StudioSearchViewModel) {
                                     completed++
                                     results[source] = emptyList()
+                                    errors += "${source}: ${networkResult.message}"
                                     if (completed >= total) {
-                                        _state.update { it.copy(results = results.toMap(), isLoading = false) }
+                                        val hasAnyResult = results.values.any { it.isNotEmpty() }
+                                        _state.update {
+                                            it.copy(
+                                                results = results.toMap(),
+                                                isLoading = false,
+                                                error = if (!hasAnyResult && errors.isNotEmpty()) {
+                                                    "Не удалось выполнить поиск: ${errors.joinToString("; ")}"
+                                                } else {
+                                                    null
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -84,5 +153,9 @@ class StudioSearchViewModel @Inject constructor(
                     }
             }
         }
+    }
+
+    private companion object {
+        val DEFAULT_SOURCES = listOf("anilibria", "animevost", "anilib", "yummyanime", "dreamcast")
     }
 }

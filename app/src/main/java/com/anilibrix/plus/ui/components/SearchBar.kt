@@ -141,7 +141,7 @@ fun AnilibrixSearchBar(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Recent searches",
+                    text = "Недавние поиски",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

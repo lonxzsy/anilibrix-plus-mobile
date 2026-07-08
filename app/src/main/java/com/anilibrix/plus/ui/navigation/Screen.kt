@@ -31,9 +31,15 @@ sealed class Screen(val route: String) {
         }
     }
 
-    data class StudioSearch(val query: String = "") : Screen("studio_search/${query.urlEncode()}") {
+    data class StudioSearch(val query: String = "") : Screen(
+        if (query.isBlank()) {
+            "studio_search"
+        } else {
+            "studio_search?query=${query.urlEncode()}"
+        }
+    ) {
         companion object {
-            const val ROUTE = "studio_search/{query}"
+            const val ROUTE = "studio_search?query={query}"
         }
     }
 

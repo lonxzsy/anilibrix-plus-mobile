@@ -6,6 +6,9 @@ import com.anilibrix.plus.data.remote.dto.TimecodeRequest
 import com.anilibrix.plus.data.remote.dto.CollectionActionRequest
 import com.anilibrix.plus.data.remote.dto.FavoriteActionRequest
 import com.anilibrix.plus.data.remote.dto.ReleaseDto
+import com.anilibrix.plus.domain.model.CatalogQuery
+import com.anilibrix.plus.domain.model.CatalogSort
+import com.anilibrix.plus.domain.model.CatalogStatus
 import com.anilibrix.plus.domain.model.CollectionItem
 import com.anilibrix.plus.domain.model.CollectionType
 import com.anilibrix.plus.domain.model.Episode
@@ -26,6 +29,7 @@ import com.anilibrix.plus.domain.model.User
 import com.anilibrix.plus.domain.repository.AnilibriaRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,11 +38,15 @@ class AnilibriaRepositoryImpl @Inject constructor(
     private val api: AnilibriaApi
 ) : AnilibriaRepository {
 
-    override fun getCatalog(page: Int, limit: Int, search: String?): Flow<NetworkResult<List<Title>>> = flow {
+    override fun getCatalog(query: CatalogQuery): Flow<NetworkResult<List<Title>>> = flow {
         emit(NetworkResult.Loading)
         try {
-            val response = api.getCatalog(page, limit, search)
-            emit(NetworkResult.Success(response.data.map { it.toDomain() }))
+            val response = api.getCatalog(
+                page = query.page,
+                limit = query.limit,
+                filters = query.toQueryMap()
+            )
+            emit(NetworkResult.Success(response.data.map { it.toDomain() }.applyCatalogFallback(query)))
         } catch (e: Exception) {
             emit(NetworkResult.Error(e.message ?: "Unknown error", e))
         }
@@ -341,6 +349,63 @@ class AnilibriaRepositoryImpl @Inject constructor(
     private fun Double.secondsToMillis(): Long = (this * 1000.0).toLong().coerceAtLeast(0L)
 
     private fun Long.toSeconds(): Double = this.coerceAtLeast(0L) / 1000.0
+
+    private fun CatalogQuery.toQueryMap(): Map<String, String> = buildMap {
+        search?.takeIf { it.isNotBlank() }?.let { put("f[search]", it) }
+        if (genres.isNotEmpty()) put("f[genres]", genres.joinToString(","))
+        year?.let { put("f[years]", it.toString()) }
+        type?.takeIf { it != ReleaseType.UNKNOWN }?.let {
+            put("f[types]", it.name.lowercase(Locale.ROOT))
+        }
+        season?.takeIf { it != SeasonName.UNKNOWN }?.let {
+            put("f[seasons]", it.name.lowercase(Locale.ROOT))
+        }
+        status?.let {
+            put("f[is_ongoing]", (it == CatalogStatus.ONGOING).toString())
+            put("f[statuses]", it.apiValue)
+        }
+        if (sort != CatalogSort.UPDATED) put("sort", sort.apiValue)
+    }
+
+    private fun List<Title>.applyCatalogFallback(query: CatalogQuery): List<Title> {
+        val search = query.search?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        return asSequence()
+            .filter { title ->
+                search.isBlank() || listOfNotNull(
+                    title.name.main,
+                    title.name.english,
+                    title.name.alternative,
+                    title.description
+                ).any { it.lowercase(Locale.ROOT).contains(search) }
+            }
+            .filter { title ->
+                query.genres.isEmpty() || title.genres.any { it.name in query.genres }
+            }
+            .filter { title ->
+                query.year == null || title.year == query.year
+            }
+            .filter { title ->
+                query.type == null || title.type == query.type
+            }
+            .filter { title ->
+                query.season == null || title.season?.name == query.season
+            }
+            .filter { title ->
+                when (query.status) {
+                    CatalogStatus.ONGOING -> title.isOngoing
+                    CatalogStatus.COMPLETED -> !title.isOngoing
+                    null -> true
+                }
+            }
+            .let { sequence ->
+                when (query.sort) {
+                    CatalogSort.UPDATED -> sequence.toList()
+                    CatalogSort.YEAR -> sequence.sortedByDescending { it.year }.toList()
+                    CatalogSort.RATING -> sequence.sortedByDescending { it.score ?: 0.0 }.toList()
+                    CatalogSort.TITLE -> sequence.sortedBy { it.name.main }.toList()
+                }
+            }
+    }
 
     private companion object {
         const val WATCHED_THRESHOLD_MS = 10_000L

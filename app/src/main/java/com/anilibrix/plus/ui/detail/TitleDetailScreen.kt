@@ -30,10 +30,12 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -47,6 +49,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -390,6 +393,18 @@ fun TitleDetailScreen(
                                         )
                                     }
 
+                                    item {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Button(
+                                            onClick = {
+                                                viewModel.onIntent(DetailIntent.ShowPlaylistDialog)
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Плейлисты")
+                                        }
+                                    }
+
                                     if (title.season != null) {
                                         item {
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -556,7 +571,7 @@ fun TitleDetailScreen(
                                                     state.franchise.forEach { franchiseItem ->
                                                         FranchiseCard(
                                                             item = franchiseItem,
-                                                            onClick = { onPlayEpisode(franchiseItem.id, 0L) }
+                                                            onClick = { onTitleClick(franchiseItem.id) }
                                                         )
                                                     }
                                                 }
@@ -580,7 +595,7 @@ fun TitleDetailScreen(
                                                         RelatedTitleCard(
                                                             item = relatedItem,
                                                             onClick = {
-                                                                relatedItem.anilibriaId?.let { onPlayEpisode(it, 0L) }
+                                                                relatedItem.anilibriaId?.let(onTitleClick)
                                                             }
                                                         )
                                                     }
@@ -755,6 +770,67 @@ fun TitleDetailScreen(
                 }
             }
         }
+    }
+
+    if (state.showPlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.onIntent(DetailIntent.DismissPlaylistDialog)
+            },
+            title = { Text("Плейлисты") },
+            text = {
+                if (state.playlists.isEmpty()) {
+                    Text("Создайте плейлист в библиотеке, чтобы добавить сюда тайтл.")
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        state.playlists.forEach { playlist ->
+                            val checked = playlist.id in state.playlistIdsForTitle
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.onIntent(
+                                            DetailIntent.TogglePlaylistMembership(playlist.id)
+                                        )
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(
+                                            DetailIntent.TogglePlaylistMembership(playlist.id)
+                                        )
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = playlist.name,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Text(
+                                        text = "${playlist.items.size} элементов",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.onIntent(DetailIntent.DismissPlaylistDialog)
+                    }
+                ) {
+                    Text("Готово")
+                }
+            }
+        )
     }
 }
 

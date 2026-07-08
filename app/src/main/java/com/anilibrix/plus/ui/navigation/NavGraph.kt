@@ -184,7 +184,12 @@ fun NavGraph(
         }
         composable(
             route = Screen.StudioSearch.ROUTE,
-            arguments = listOf(navArgument("query") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("query") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
         ) { backStackEntry ->
             val query = backStackEntry.arguments?.getString("query")?.urlDecode() ?: ""
             StudioSearchScreen(

@@ -30,7 +30,7 @@ interface AnilibriaApi {
     suspend fun getCatalog(
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20,
-        @Query("f[search]") search: String? = null
+        @retrofit2.http.QueryMap(encoded = true) filters: Map<String, String> = emptyMap()
     ): CatalogResponse
 
     @GET("anime/releases/{idOrAlias}")
