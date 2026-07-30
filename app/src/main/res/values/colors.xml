@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Единственные цвета вне Compose. Раньше здесь лежала третья расходящаяся
+  палитра (primary/on_primary/on_surface/surface_container), из которой реально
+  использовался ровно один цвет — windowBackground в themes.xml.
+
+  Эти два значения ЗЕРКАЛЯТ ui/theme/Color.kt и нужны только для кадра между
+  стартом окна и первой композицией. При изменении surface в Color.kt —
+  править и здесь.
+-->
+<resources>
+    <!-- = AnilibrixLightColorScheme.surface -->
+    <color name="window_background">#FAF9FB</color>
+    <!-- = AnilibrixDarkColorScheme.surface (приложение по умолчанию тёмное) -->
+    <color name="splash_background">#0A0712</color>
+</resources>
