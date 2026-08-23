@@ -1,8 +1,10 @@
 package com.anilibrix.plus.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,8 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -41,41 +43,36 @@ import com.anilibrix.plus.ui.theme.Sizing
 import com.anilibrix.plus.ui.theme.Spacing
 import com.anilibrix.plus.ui.theme.extended
 
-/**
- * Карточка тайтла в сетке.
- *
- * Ключевые изменения против прежней версии:
- *
- * * **Убрана `cardElevation(6dp/10dp)`.** Тень на четырёх десятках карточек
- *   сетки — основной источник подтормаживания при скролле, и MD3 для карточек
- *   списка предписывает тональную поверхность, а не тень.
- * * **Постер задан пропорцией, а не `height(180.dp)`,** а текстовый блок имеет
- *   минимальную высоту ровно под две строки. Раньше ячейки с длинными
- *   названиями были выше соседних — сетка выглядела рваной.
- * * Все хардкоды (`0xFFFFC107`, `Color.White`, `Color.Black.copy(0.68f)`,
- *   `RoundedCornerShape(999.dp)`, три разных радиуса) заменены токенами.
- * * Картинка грузится через [AnilibrixImage] — с crossfade и скелетоном.
- */
+private val TITLE_BLOCK_MIN_HEIGHT = 56.dp
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TitleCardGrid(
     title: Title,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     progress: Float? = null,
-    /**
-     * Сердце на карточке.
-     *
-     * `getFavoriteIds()` существовал в API с самого начала, но не вызывался
-     * ниоткуда, а `Title.inFavorites` отбрасывался при маппинге — понять, что
-     * тайтл уже в избранном, можно было только открыв его.
-     */
     isFavorite: Boolean = false,
 ) {
+    val haptics = rememberHaptics()
     Card(
         modifier = modifier
             .fillMaxWidth()
             .pressScale()
-            .clickable(onClick = onClick),
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = {
+                            haptics.longPress()
+                            onLongClick()
+                        }
+                    )
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                }
+            ),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -149,8 +146,6 @@ fun TitleCardGrid(
             Column(
                 modifier = Modifier
                     .padding(Spacing.sm)
-                    // Ровно две строки заголовка + строка жанров: не даёт
-                    // соседним ячейкам сетки разъезжаться по высоте.
                     .heightIn(min = TITLE_BLOCK_MIN_HEIGHT)
             ) {
                 Text(
@@ -174,18 +169,33 @@ fun TitleCardGrid(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TitleCardList(
     title: Title,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     progress: Float? = null,
 ) {
+    val haptics = rememberHaptics()
     Card(
         modifier = modifier
             .fillMaxWidth()
             .pressScale()
-            .clickable(onClick = onClick),
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = {
+                            haptics.longPress()
+                            onLongClick()
+                        }
+                    )
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                }
+            ),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -280,65 +290,47 @@ fun TitleCardList(
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
-                } else if (title.episodesTotal > 0) {
-                    Text(
-                        text = "${title.episodes?.size ?: 0} / ${title.episodesTotal} эп.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
     }
 }
 
-/** Оценка поверх постера: тёмная пилюля, читаемая на любой обложке. */
 @Composable
-private fun ScorePill(score: Double, modifier: Modifier = Modifier) {
+fun ScorePill(score: Double, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .background(MaterialTheme.extended.mediaScrim, CircleShape)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            .padding(horizontal = Spacing.sm, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Icon(
             imageVector = Icons.Rounded.Star,
             contentDescription = null,
             tint = MaterialTheme.extended.rating,
-            modifier = Modifier.size(Sizing.iconXs),
+            modifier = Modifier.size(12.dp)
         )
-        Spacer(modifier = Modifier.width(Spacing.xxs))
         Text(
             text = String.format("%.1f", score),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.extended.onMediaScrim,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
         )
     }
 }
 
 @Composable
-private fun TypePill(text: String, modifier: Modifier = Modifier) {
+fun TypePill(text: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .background(AnilibrixBrushes.primaryGradient, CircleShape)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+            .background(MaterialTheme.extended.mediaScrim, CircleShape)
+            .padding(horizontal = Spacing.sm, vertical = 2.dp)
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = MaterialTheme.extended.onMediaScrim
         )
     }
 }
-
-/**
- * Скелетон карточки. Делегирует в общую систему скелетонов, чтобы форма и
- * радиусы гарантированно совпадали с настоящей карточкой.
- */
-@Composable
-fun TitleCardShimmer(modifier: Modifier = Modifier) {
-    TitleCardGridSkeleton(modifier)
-}
-
-/** Две строки labelLarge (20sp leading) + строка bodySmall (16sp) + отступы. */
-private val TITLE_BLOCK_MIN_HEIGHT = 58.dp

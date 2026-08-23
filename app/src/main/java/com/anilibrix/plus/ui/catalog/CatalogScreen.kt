@@ -135,6 +135,7 @@ fun CatalogScreen(
     var searchText by remember { mutableStateOf(state.filter.search) }
     var searchExpanded by remember { mutableStateOf(false) }
     var showFiltersSheet by remember { mutableStateOf(false) }
+    var contextMenuTitle by remember { mutableStateOf<com.anilibrix.plus.domain.model.Title?>(null) }
 
     LaunchedEffect(state.filter.search) {
         if (searchText != state.filter.search) searchText = state.filter.search
@@ -166,30 +167,21 @@ fun CatalogScreen(
         viewModel.onIntent(CatalogIntent.UpdateFilter(filter))
     }
 
-    // Раскрытый поиск должен занимать ВЕСЬ экран, поэтому боковые поля есть
-    // только у свёрнутого состояния. Раньше отступ стоял всегда — из-за него
-    // раскрытая панель не доходила до краёв и получала прямые углы.
     val animatedSearchPadding by animateDpAsState(
         targetValue = if (searchExpanded) 0.dp else Spacing.screenHorizontal,
-        // Именно НЕупругая спека: spatial-пружина (затухание 0.8) проскакивает
-        // ниже нуля, а Modifier.padding на отрицательном значении падает.
         animationSpec = MotionTokens.effectsDefault(),
         label = "searchBarPadding",
     )
-    // Страховка на случай любой другой спеки в будущем.
     val searchHorizontalPadding = animatedSearchPadding.coerceAtLeast(0.dp)
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Scaffold(
-        // Инсеты обслуживает сам SearchBar: только так он корректно
-        // разворачивается на весь экран вместе со статус-баром.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { _ ->
         Box(modifier = Modifier.fillMaxSize()) {
             SearchBar(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    // Объявлен раньше контента, поэтому поднимаем слой явно.
                     .zIndex(1f)
                     .padding(horizontal = searchHorizontalPadding),
                 inputField = {
@@ -208,9 +200,6 @@ fun CatalogScreen(
                         placeholder = { Text("Поиск аниме…") },
                         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                         trailingIcon = {
-                            // Кнопка очистки не выскакивает, а проявляется
-                            // с приближением — иначе она «стреляет» на первом
-                            // же введённом символе.
                             AnimatedVisibility(
                                 visible = searchText.isNotEmpty(),
                                 enter = scaleIn(MotionTokens.spatialDefault(), initialScale = 0.6f) +
@@ -255,9 +244,6 @@ fun CatalogScreen(
                 )
             }
 
-            // Контент под поиском. Раньше он пересобирался при раскрытии
-            // (`if (!searchExpanded)`) и прыгал при закрытии — теперь просто
-            // лежит под оверлеем.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -272,6 +258,14 @@ fun CatalogScreen(
                     },
                     onOpenFilters = { showFiltersSheet = true },
                     onOpenStudios = { onNavigateToStudioSearch(searchText) },
+                    onRandomPick = {
+                        val available = state.titles
+                        if (available.isNotEmpty()) {
+                            haptics.confirm()
+                            val picked = available.random()
+                            onTitleClick(picked.id)
+                        }
+                    },
                 )
 
                 ActiveFilterChips(
@@ -291,8 +285,6 @@ fun CatalogScreen(
                     )
                 },
                 empty = {
-                    // Раньше при нулевом результате поиска не показывалось
-                    // вообще ничего: футер был завязан на titles.isNotEmpty().
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         EmptyState(
                             kind = EmptyKind.SearchResult,
@@ -333,6 +325,7 @@ fun CatalogScreen(
                                 TitleCardGrid(
                                     title = title,
                                     onClick = { onTitleClick(title.id) },
+                                    onLongClick = { contextMenuTitle = title },
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = MotionTokens.effectsDefault(),
                                         placementSpec = MotionTokens.spatialDefault(),
@@ -340,8 +333,6 @@ fun CatalogScreen(
                                     ),
                                 )
                             }
-                            // Догрузка — скелетоны, а не спиннер: контент
-                            // продолжается вместо того, чтобы прерываться.
                             if (state.loadingMore) {
                                 items(2) { TitleCardGridSkeleton() }
                             }
@@ -365,6 +356,7 @@ fun CatalogScreen(
                                 TitleCardList(
                                     title = title,
                                     onClick = { onTitleClick(title.id) },
+                                    onLongClick = { contextMenuTitle = title },
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = MotionTokens.effectsDefault(),
                                         placementSpec = MotionTokens.spatialDefault(),
@@ -384,6 +376,18 @@ fun CatalogScreen(
                 }
             }
         }
+    }
+
+    contextMenuTitle?.let { title ->
+        com.anilibrix.plus.ui.components.TitleContextMenuSheet(
+            title = title,
+            onPlay = { onTitleClick(title.id) },
+            onOpenDetails = { onTitleClick(title.id) },
+            onToggleFavorite = {},
+            onSetCollectionStatus = {},
+            onClearCollectionStatus = {},
+            onDismiss = { contextMenuTitle = null }
+        )
     }
 
     if (showFiltersSheet) {
@@ -444,54 +448,72 @@ private fun CatalogControls(
     onViewModeChange: (ViewMode) -> Unit,
     onOpenFilters: () -> Unit,
     onOpenStudios: () -> Unit,
+    onRandomPick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SingleChoiceSegmentedButtonRow {
-            SegmentedButton(
-                selected = viewMode == ViewMode.GRID,
-                onClick = { onViewModeChange(ViewMode.GRID) },
-                shape = SegmentedButtonDefaults.itemShape(0, 2),
-                icon = {},
-            ) {
-                Icon(
-                    Icons.Rounded.GridView,
-                    contentDescription = "Сетка",
-                    modifier = Modifier.size(Sizing.iconSm),
-                )
+        item {
+            SingleChoiceSegmentedButtonRow {
+                SegmentedButton(
+                    selected = viewMode == ViewMode.GRID,
+                    onClick = { onViewModeChange(ViewMode.GRID) },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+                    icon = {},
+                ) {
+                    Icon(
+                        Icons.Rounded.GridView,
+                        contentDescription = "Сетка",
+                        modifier = Modifier.size(Sizing.iconSm),
+                    )
+                }
+                SegmentedButton(
+                    selected = viewMode == ViewMode.LIST,
+                    onClick = { onViewModeChange(ViewMode.LIST) },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2),
+                    icon = {},
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.List,
+                        contentDescription = "Список",
+                        modifier = Modifier.size(Sizing.iconSm),
+                    )
+                }
             }
-            SegmentedButton(
-                selected = viewMode == ViewMode.LIST,
-                onClick = { onViewModeChange(ViewMode.LIST) },
-                shape = SegmentedButtonDefaults.itemShape(1, 2),
-                icon = {},
+        }
+
+        item {
+            BadgedBox(
+                badge = {
+                    if (activeFilterCount > 0) {
+                        Badge { Text(activeFilterCount.toString()) }
+                    }
+                }
             ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.List,
-                    contentDescription = "Список",
-                    modifier = Modifier.size(Sizing.iconSm),
+                AssistChip(
+                    onClick = onOpenFilters,
+                    label = { Text("Фильтры") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.Tune,
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizing.iconSm),
+                        )
+                    },
                 )
             }
         }
 
-        BadgedBox(
-            badge = {
-                if (activeFilterCount > 0) {
-                    Badge { Text(activeFilterCount.toString()) }
-                }
-            }
-        ) {
+        item {
             AssistChip(
-                onClick = onOpenFilters,
-                label = { Text("Фильтры") },
+                onClick = onOpenStudios,
+                label = { Text("Студии") },
                 leadingIcon = {
                     Icon(
-                        Icons.Rounded.Tune,
+                        Icons.Rounded.Movie,
                         contentDescription = null,
                         modifier = Modifier.size(Sizing.iconSm),
                     )
@@ -499,17 +521,19 @@ private fun CatalogControls(
             )
         }
 
-        AssistChip(
-            onClick = onOpenStudios,
-            label = { Text("Студии") },
-            leadingIcon = {
-                Icon(
-                    Icons.Rounded.Movie,
-                    contentDescription = null,
-                    modifier = Modifier.size(Sizing.iconSm),
-                )
-            },
-        )
+        item {
+            AssistChip(
+                onClick = onRandomPick,
+                label = { Text("Случайно") },
+                leadingIcon = {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.CallMade,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizing.iconSm),
+                    )
+                },
+            )
+        }
     }
 }
 

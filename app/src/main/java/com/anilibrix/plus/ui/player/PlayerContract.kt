@@ -5,6 +5,14 @@ import com.anilibrix.plus.core.util.SubtitleCue
 import com.anilibrix.plus.domain.model.Episode
 
 @Immutable
+enum class AspectRatioMode(val label: String) {
+    FIT("По размеру"),
+    CROP("Заполнить"),
+    STRETCH_16_9("16:9"),
+    ZOOM("Увеличить")
+}
+
+@Immutable
 data class PlayerUiState(
     val currentEpisode: Episode? = null,
     val allEpisodes: List<Episode> = emptyList(),
@@ -25,6 +33,11 @@ data class PlayerUiState(
     val showControls: Boolean = true,
     val isPiP: Boolean = false,
     val isFullscreen: Boolean = true,
+    val isTouchLocked: Boolean = false,
+    val brightness: Float = 0.5f,
+    val aspectRatioMode: AspectRatioMode = AspectRatioMode.FIT,
+    val audioDelayMs: Long = 0L,
+    val subtitleDelayMs: Long = 0L,
     val subtitlesEnabled: Boolean = false,
     val subtitleSizeSp: Int = 24,
     val subtitleColorHex: String = "#FFFFFF",
@@ -148,4 +161,9 @@ sealed class PlayerIntent {
     data class SetSubtitleTracks(val tracks: List<PlayerSubtitleTrack>) : PlayerIntent()
     data class SelectSubtitleTrack(val trackId: String?) : PlayerIntent()
     data class LoadExternalSubtitles(val name: String, val cues: List<SubtitleCue>) : PlayerIntent()
+    data class SetBrightness(val brightness: Float) : PlayerIntent()
+    data object ToggleTouchLock : PlayerIntent()
+    data class SetAspectRatio(val mode: AspectRatioMode) : PlayerIntent()
+    data class SetAudioDelay(val offsetMs: Long) : PlayerIntent()
+    data class SetSubtitleDelay(val offsetMs: Long) : PlayerIntent()
 }

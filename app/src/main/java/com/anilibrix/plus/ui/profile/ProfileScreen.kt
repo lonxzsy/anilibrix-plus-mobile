@@ -124,8 +124,29 @@ fun ProfileScreen(
     onShikimoriCodeConsumed: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showAboutDialog by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                viewModel.onIntent(ProfileIntent.ExportBackup(outputStream))
+            }
+        }
+    }
+
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                viewModel.onIntent(ProfileIntent.ImportBackup(inputStream))
+            }
+        }
+    }
 
     LaunchedEffect(shikimoriCode) {
         val code = shikimoriCode ?: return@LaunchedEffect
@@ -628,6 +649,25 @@ fun ProfileScreen(
                         )
 
                         SettingsItem(
+                            icon = Icons.Default.CloudSync,
+                            title = "Создать резервную копию",
+                            supportingText = "Экспорт истории, закладок и плейлистов в JSON",
+                            onClick = {
+                                val dateStr = java.time.LocalDate.now().toString()
+                                exportLauncher.launch("anilibrix_backup_$dateStr.json")
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Rounded.Download,
+                            title = "Восстановить из копии",
+                            supportingText = "Импорт данных из JSON-файла резервной копии",
+                            onClick = {
+                                importLauncher.launch(arrayOf("application/json", "*/*"))
+                            }
+                        )
+
+                        SettingsItem(
                             icon = Icons.Default.Sync,
                             title = "Синхронизация",
                             supportingText = state.syncStatus
@@ -795,6 +835,19 @@ fun ProfileScreen(
                             onClick = { viewModel.onIntent(ProfileIntent.DismissClearDataDialog) }
                         ) {
                             Text("Отмена")
+                        }
+                    }
+                )
+            }
+
+            state.backupMessage?.let { message ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.onIntent(ProfileIntent.DismissBackupMessage) },
+                    title = { Text("Резервная копия") },
+                    text = { Text(message) },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.onIntent(ProfileIntent.DismissBackupMessage) }) {
+                            Text("Понятно")
                         }
                     }
                 )

@@ -51,7 +51,8 @@ data class ProfileUiState(
     val showClearDataDialog: Boolean = false,
     val showAuthSheet: Boolean = false,
     val loading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val backupMessage: String? = null
 )
 
 sealed interface ProfileIntent {
@@ -91,4 +92,7 @@ sealed interface ProfileIntent {
     data object DismissAuthSheet : ProfileIntent
     data class Login(val login: String, val password: String) : ProfileIntent
     data object NavigateToChangelog : ProfileIntent
+    data class ExportBackup(val outputStream: java.io.OutputStream) : ProfileIntent
+    data class ImportBackup(val inputStream: java.io.InputStream) : ProfileIntent
+    data object DismissBackupMessage : ProfileIntent
 }

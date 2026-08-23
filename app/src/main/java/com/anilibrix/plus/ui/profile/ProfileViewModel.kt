@@ -38,6 +38,7 @@ class ProfileViewModel @Inject constructor(
     private val shikimoriAuth: ShikimoriAuthManager,
     private val shikimoriImporter: ShikimoriImporter,
     private val syncScheduler: SyncScheduler,
+    private val backupManager: com.anilibrix.plus.core.backup.BackupManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -135,6 +136,30 @@ class ProfileViewModel @Inject constructor(
                 settingsDataStore.setShikimoriPushRatings(intent.enabled)
                 _state.update { it.copy(shikimoriPushRatings = intent.enabled) }
             }
+            is ProfileIntent.ExportBackup -> viewModelScope.launch {
+                backupManager.createBackup(intent.outputStream)
+                    .onSuccess { count ->
+                        _state.update { it.copy(backupMessage = "Экспортировано объектов: $count") }
+                    }
+                    .onFailure { error ->
+                        _state.update { it.copy(backupMessage = "Ошибка экспорта: ${error.localizedMessage}") }
+                    }
+            }
+            is ProfileIntent.ImportBackup -> viewModelScope.launch {
+                backupManager.restoreBackup(intent.inputStream)
+                    .onSuccess { res ->
+                        _state.update {
+                            it.copy(
+                                backupMessage = "Восстановлено: ${res.historyCount} истории, ${res.favoritesCount} избранного, ${res.collectionsCount} коллекций, ${res.playlistsCount} плейлистов"
+                            )
+                        }
+                        loadProfile()
+                    }
+                    .onFailure { error ->
+                        _state.update { it.copy(backupMessage = "Ошибка импорта: ${error.localizedMessage}") }
+                    }
+            }
+            ProfileIntent.DismissBackupMessage -> _state.update { it.copy(backupMessage = null) }
             ProfileIntent.NavigateToChangelog -> {}
         }
     }

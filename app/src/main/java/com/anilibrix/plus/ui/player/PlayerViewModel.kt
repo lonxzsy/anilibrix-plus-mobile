@@ -261,6 +261,19 @@ class PlayerViewModel @Inject constructor(
             }
             PlayerIntent.OnVideoEnded -> handleVideoEnded()
             PlayerIntent.SeekComplete -> updateState { copy(seekPosition = -1L) }
+            is PlayerIntent.SetBrightness -> updateState { copy(brightness = intent.brightness.coerceIn(0.01f, 1f)) }
+            PlayerIntent.ToggleTouchLock -> updateState {
+                val newLocked = !isTouchLocked
+                copy(isTouchLocked = newLocked, showControls = !newLocked)
+            }
+            is PlayerIntent.SetAspectRatio -> updateState { copy(aspectRatioMode = intent.mode) }
+            is PlayerIntent.SetAudioDelay -> updateState { copy(audioDelayMs = intent.offsetMs) }
+            is PlayerIntent.SetSubtitleDelay -> updateState {
+                copy(
+                    subtitleDelayMs = intent.offsetMs,
+                    subtitleText = subtitleAt(currentPosition, subtitleCues, intent.offsetMs)
+                )
+            }
         }
     }
 
@@ -313,10 +326,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun subtitleAt(position: Long, cues: List<SubtitleCue> = uiState.value.subtitleCues): String {
+    private fun subtitleAt(
+        position: Long,
+        cues: List<SubtitleCue> = uiState.value.subtitleCues,
+        delayMs: Long = uiState.value.subtitleDelayMs
+    ): String {
         if (!uiState.value.subtitlesEnabled || position < 0L || cues.isEmpty()) return ""
+        val adjustedPosition = (position - delayMs).coerceAtLeast(0L)
         return cues
-            .lastOrNull { cue -> position >= cue.startTime && position <= cue.endTime }
+            .lastOrNull { cue -> adjustedPosition >= cue.startTime && adjustedPosition <= cue.endTime }
             ?.text
             .orEmpty()
     }

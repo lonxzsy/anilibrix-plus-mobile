@@ -24,11 +24,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.anilibrix.plus.ui.components.AnilibrixBottomSheet
 import com.anilibrix.plus.ui.components.rememberHaptics
 import com.anilibrix.plus.ui.theme.AnilibrixTypeExtras
 import com.anilibrix.plus.ui.theme.Sizing
 import com.anilibrix.plus.ui.theme.Spacing
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.ui.Alignment
 
 /** Одна выбираемая дорожка — качество, скорость или субтитры. */
 data class TrackOption(
@@ -38,17 +48,7 @@ data class TrackOption(
 )
 
 /**
- * Единая шторка выбора: качество, скорость, субтитры.
- *
- * Раньше качество и скорость жили в двух выпадающих меню в углу экрана —
- * на телефоне до них надо тянуться через весь экран, и попасть одной рукой
- * почти невозможно. Шторка снизу решает это и заодно собирает всё, что
- * относится к «как это играет», в одном месте.
- *
- * Про субтитры честно: Anilibria не отдаёт отдельных субтитровых дорожек —
- * в ответе API есть только HLS-потоки. Поэтому список текстовых дорожек
- * заполняется тем, что нашлось в самом манифесте, а если там пусто, остаётся
- * единственный работающий путь — загрузить файл с устройства.
+ * Единая шторка выбора: качество, скорость, субтитры и синхронизация.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +63,10 @@ fun TracksSheet(
     selectedSubtitle: String?,
     onSubtitleSelected: (String?) -> Unit,
     onLoadSubtitleFile: () -> Unit,
+    audioDelayMs: Long = 0L,
+    onAudioDelayChange: (Long) -> Unit = {},
+    subtitleDelayMs: Long = 0L,
+    onSubtitleDelayChange: (Long) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -155,6 +159,44 @@ fun TracksSheet(
                         onLoadSubtitleFile()
                     },
                 ),
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+
+        SheetSection(
+            title = "Синхронизация",
+            icon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, modifier = Modifier.size(Sizing.iconMd)) },
+        )
+
+        ListItem(
+            headlineContent = { Text("Смещение субтитров") },
+            supportingContent = { Text("${if (subtitleDelayMs > 0) "+" else ""}${subtitleDelayMs} мс") },
+            trailingContent = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    OutlinedIconButton(
+                        onClick = {
+                            haptics.tick()
+                            onSubtitleDelayChange(subtitleDelayMs - 50L)
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(Icons.Rounded.Remove, contentDescription = "-50ms", modifier = Modifier.size(18.dp))
+                    }
+                    OutlinedIconButton(
+                        onClick = {
+                            haptics.tick()
+                            onSubtitleDelayChange(subtitleDelayMs + 50L)
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = "+50ms", modifier = Modifier.size(18.dp))
+                    }
+                }
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         )
 
         Spacer(Modifier.height(Spacing.md))

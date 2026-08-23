@@ -299,6 +299,20 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(state.brightness) {
+        val window = activity?.window ?: return@LaunchedEffect
+        val lp = window.attributes
+        lp.screenBrightness = state.brightness
+        window.attributes = lp
+    }
+
+    val resizeMode = when (state.aspectRatioMode) {
+        AspectRatioMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        AspectRatioMode.CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        AspectRatioMode.STRETCH_16_9 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+        AspectRatioMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -385,39 +399,54 @@ fun PlayerScreen(
             factory = { ctx ->
                 androidx.media3.ui.PlayerView(ctx).apply {
                     useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    this.resizeMode = resizeMode
                 }
             },
             // В режиме «только звук» отвязываем поверхность от плеера:
             // видеодекодер останавливается, звук идёт дальше из сервиса.
-            update = { view -> view.player = if (state.audioOnly) null else player },
+            update = { view ->
+                view.player = if (state.audioOnly) null else player
+                view.resizeMode = resizeMode
+            },
             modifier = Modifier.fillMaxSize()
         )
 
         if (!isInPip) {
-        PlayerController(
-            state = state,
-            onPlayPause = { viewModel.handleIntent(PlayerIntent.PlayPause) },
-            onSeek = { viewModel.handleIntent(PlayerIntent.SeekTo(it)) },
-            onSeekRelative = { viewModel.handleIntent(PlayerIntent.SeekRelative(it)) },
-            onQualityChange = { viewModel.handleIntent(PlayerIntent.SetQuality(it)) },
-            onSpeedChange = { viewModel.handleIntent(PlayerIntent.SetSpeed(it)) },
-            onToggleSubtitles = { viewModel.handleIntent(PlayerIntent.ToggleSubtitles) },
-            onToggleMute = { viewModel.handleIntent(PlayerIntent.ToggleMute) },
-            onSkipOpening = { viewModel.handleIntent(PlayerIntent.SkipOpening) },
-            onSkipEnding = { viewModel.handleIntent(PlayerIntent.SkipEnding) },
-            onDismissAutoAdvance = { viewModel.handleIntent(PlayerIntent.DismissAutoAdvance) },
-            onSkipAutoAdvance = { viewModel.handleIntent(PlayerIntent.SkipAutoAdvance) },
-            onToggleFullscreen = { viewModel.handleIntent(PlayerIntent.ToggleFullscreen) },
-            onToggleControls = { viewModel.handleIntent(PlayerIntent.ToggleControls) },
-            onOpenTracks = { viewModel.handleIntent(PlayerIntent.ShowTracksSheet) },
-            onRetry = { viewModel.handleIntent(PlayerIntent.RetryPlayback) },
-            onBack = onBack,
-            modifier = Modifier.fillMaxSize()
-        )
+            PlayerController(
+                state = state,
+                onPlayPause = { viewModel.handleIntent(PlayerIntent.PlayPause) },
+                onSeek = { viewModel.handleIntent(PlayerIntent.SeekTo(it)) },
+                onSeekRelative = { viewModel.handleIntent(PlayerIntent.SeekRelative(it)) },
+                onQualityChange = { viewModel.handleIntent(PlayerIntent.SetQuality(it)) },
+                onSpeedChange = { viewModel.handleIntent(PlayerIntent.SetSpeed(it)) },
+                onToggleSubtitles = { viewModel.handleIntent(PlayerIntent.ToggleSubtitles) },
+                onToggleMute = { viewModel.handleIntent(PlayerIntent.ToggleMute) },
+                onSkipOpening = { viewModel.handleIntent(PlayerIntent.SkipOpening) },
+                onSkipEnding = { viewModel.handleIntent(PlayerIntent.SkipEnding) },
+                onDismissAutoAdvance = { viewModel.handleIntent(PlayerIntent.DismissAutoAdvance) },
+                onSkipAutoAdvance = { viewModel.handleIntent(PlayerIntent.SkipAutoAdvance) },
+                onToggleFullscreen = { viewModel.handleIntent(PlayerIntent.ToggleFullscreen) },
+                onToggleControls = { viewModel.handleIntent(PlayerIntent.ToggleControls) },
+                onOpenTracks = { viewModel.handleIntent(PlayerIntent.ShowTracksSheet) },
+                onRetry = { viewModel.handleIntent(PlayerIntent.RetryPlayback) },
+                onBack = onBack,
+                onBrightnessChange = { viewModel.handleIntent(PlayerIntent.SetBrightness(it)) },
+                onVolumeChange = { viewModel.handleIntent(PlayerIntent.SetVolume(it)) },
+                onToggleTouchLock = { viewModel.handleIntent(PlayerIntent.ToggleTouchLock) },
+                onCycleAspectRatio = {
+                    val nextMode = when (state.aspectRatioMode) {
+                        AspectRatioMode.FIT -> AspectRatioMode.CROP
+                        AspectRatioMode.CROP -> AspectRatioMode.STRETCH_16_9
+                        AspectRatioMode.STRETCH_16_9 -> AspectRatioMode.ZOOM
+                        AspectRatioMode.ZOOM -> AspectRatioMode.FIT
+                    }
+                    viewModel.handleIntent(PlayerIntent.SetAspectRatio(nextMode))
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
-        if (!state.isFullscreen && !isInPip) {
+        if (!state.isFullscreen && !isInPip && !state.isTouchLocked) {
             TopAppBar(
                 title = {
                     Column {
@@ -462,9 +491,6 @@ fun PlayerScreen(
                         )
                     }
                     IconButton(onClick = {
-                        // Сначала реально сворачиваем, потом отмечаем в
-                        // состоянии: раньше здесь менялся только флаг, а
-                        // системный вызов не делался вовсе.
                         activity?.enterPictureInPicture(player)
                         viewModel.handleIntent(PlayerIntent.StartPiP)
                     }) {
@@ -504,11 +530,12 @@ fun PlayerScreen(
             selectedSubtitle = state.selectedSubtitleTrackId,
             onSubtitleSelected = { viewModel.handleIntent(PlayerIntent.SelectSubtitleTrack(it)) },
             onLoadSubtitleFile = {
-                // MIME у .srt на разных устройствах разный, поэтому
-                // разрешаем text/* и любой тип: иначе на части прошивок файл
-                // просто не виден в системном выборе.
                 subtitlePicker.launch(arrayOf("text/*", "application/x-subrip", "*/*"))
             },
+            audioDelayMs = state.audioDelayMs,
+            onAudioDelayChange = { viewModel.handleIntent(PlayerIntent.SetAudioDelay(it)) },
+            subtitleDelayMs = state.subtitleDelayMs,
+            onSubtitleDelayChange = { viewModel.handleIntent(PlayerIntent.SetSubtitleDelay(it)) },
             onDismiss = { viewModel.handleIntent(PlayerIntent.DismissTracksSheet) },
         )
     }
