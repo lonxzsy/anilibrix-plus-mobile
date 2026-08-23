@@ -47,5 +47,7 @@ captures/
 ehthumbs.db
 Thumbs.db
 
-# Test/verification artifacts
+# Test/verification artifacts and old assets
 verify-shots/
+app-ss/
+docs/
