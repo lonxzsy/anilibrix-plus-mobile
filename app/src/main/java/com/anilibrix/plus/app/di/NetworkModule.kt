@@ -44,6 +44,22 @@ annotation class GitHubApi
 @Retention(AnnotationRetention.BINARY)
 annotation class ShikimoriApi
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class KodikApi
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AniSkipApi
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ConsumetApi
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class NyaaApi
+
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -210,5 +226,72 @@ object NetworkModule {
     @Singleton
     fun provideShikimoriApiService(@ShikimoriApi retrofit: Retrofit): com.anilibrix.plus.data.remote.api.ShikimoriApi {
         return retrofit.create(com.anilibrix.plus.data.remote.api.ShikimoriApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @KodikApi
+    fun provideKodikRetrofit(client: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://kodikapi.com/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideKodikApiService(@KodikApi retrofit: Retrofit): com.anilibrix.plus.data.remote.api.KodikApi {
+        return retrofit.create(com.anilibrix.plus.data.remote.api.KodikApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @AniSkipApi
+    fun provideAniSkipRetrofit(client: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.aniskip.com/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAniSkipApiService(@AniSkipApi retrofit: Retrofit): com.anilibrix.plus.data.remote.api.AniSkipApi {
+        return retrofit.create(com.anilibrix.plus.data.remote.api.AniSkipApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @ConsumetApi
+    fun provideConsumetRetrofit(client: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.consumet.org/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideConsumetApiService(@ConsumetApi retrofit: Retrofit): com.anilibrix.plus.data.remote.api.ConsumetApi {
+        return retrofit.create(com.anilibrix.plus.data.remote.api.ConsumetApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @NyaaApi
+    fun provideNyaaRetrofit(client: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://nyaa.si/")
+            .client(client)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideNyaaApiService(@NyaaApi retrofit: Retrofit): com.anilibrix.plus.data.remote.api.NyaaApi {
+        return retrofit.create(com.anilibrix.plus.data.remote.api.NyaaApi::class.java)
     }
 }

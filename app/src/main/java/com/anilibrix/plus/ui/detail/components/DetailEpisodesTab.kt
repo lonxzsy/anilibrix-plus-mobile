@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.anilibrix.plus.core.download.DownloadItem
@@ -74,15 +75,40 @@ fun LazyListScope.episodesSection(
     onIntent: (DetailIntent) -> Unit,
     onPlayEpisode: (Long, Long) -> Unit,
 ) {
-    val episodes = state.title?.episodes.orEmpty()
+    val episodes = state.voiceoverEpisodes ?: state.title?.episodes.orEmpty()
     val titleId = state.title?.id ?: 0L
+
+    // Селектор озвучек и провайдеров
+    item {
+        VoiceoverBarItem(
+            selectedVoiceover = state.selectedVoiceover,
+            availableCount = state.availableVoiceovers.size,
+            isLoading = state.isVoiceoverLoading,
+            onClick = { onIntent(DetailIntent.ShowVoiceoverSheet) }
+        )
+        Spacer(Modifier.height(Spacing.xs))
+    }
+
+    if (state.isVoiceoverLoading) {
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xl),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            }
+        }
+        return
+    }
 
     if (episodes.isEmpty()) {
         item {
             EmptyState(
                 kind = EmptyKind.Episodes,
-                title = "Эпизоды ещё не вышли",
-                subtitle = "Следите за расписанием, новые серии появятся здесь",
+                title = "Эпизоды не найдены",
+                subtitle = "Попробуйте выбрать другой вариант озвучки выше",
                 modifier = Modifier.padding(vertical = Spacing.xl)
             )
         }
@@ -400,3 +426,92 @@ private fun formatEpisodeDuration(totalSec: Int): String {
     val sec = totalSec % 60
     return String.format("%d:%02d", min, sec)
 }
+
+@Composable
+fun VoiceoverBarItem(
+    selectedVoiceover: com.anilibrix.plus.domain.model.VoiceoverOption?,
+    availableCount: Int,
+    isLoading: Boolean,
+    onClick: () -> Unit
+) {
+    val name = selectedVoiceover?.name ?: "AniLibria"
+    val providerName = selectedVoiceover?.provider?.displayName ?: "Официальный"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(),
+        shape = MaterialTheme.shapes.medium,
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = Elevation.level0)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Rounded.DoneAll,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(Spacing.md))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Озвучка: ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        text = "$providerName • ${if (availableCount > 0) "вариантов: $availableCount" else "поиск студий..."}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(Spacing.xs))
+                }
+                Text(
+                    text = "Сменить",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+

@@ -96,7 +96,15 @@ data class DetailUiState(
     /** Индекс кадра, открытого на весь экран; `null` — просмотрщик закрыт. */
     val fullscreenScreenshot: Int? = null,
     val externalErrors: Map<DetailDataSource, String> = emptyMap(),
-    val debugMessages: List<String> = emptyList()
+    val debugMessages: List<String> = emptyList(),
+    // Озвучки и сторонние источники
+    val availableVoiceovers: List<com.anilibrix.plus.domain.model.VoiceoverOption> = emptyList(),
+    val selectedVoiceover: com.anilibrix.plus.domain.model.VoiceoverOption? = null,
+    val isVoiceoverLoading: Boolean = false,
+    val voiceoverEpisodes: List<Episode>? = null,
+    val showVoiceoverSheet: Boolean = false,
+    val nyaaTorrents: List<Torrent> = emptyList(),
+    val selectedTorrentSource: String = "anilibria"
 )
 
 sealed interface DetailIntent {
@@ -123,4 +131,10 @@ sealed interface DetailIntent {
     data class OpenMagnet(val magnet: String) : DetailIntent
     data class OpenScreenshot(val index: Int) : DetailIntent
     data object CloseScreenshot : DetailIntent
+    // Озвучки и провайдеры
+    data object ShowVoiceoverSheet : DetailIntent
+    data object DismissVoiceoverSheet : DetailIntent
+    data class SelectVoiceover(val option: com.anilibrix.plus.domain.model.VoiceoverOption, val rememberForTitle: Boolean = false) : DetailIntent
+    data class SelectTorrentSource(val source: String) : DetailIntent
 }
+

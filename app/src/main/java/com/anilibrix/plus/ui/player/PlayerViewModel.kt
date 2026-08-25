@@ -29,6 +29,8 @@ class PlayerViewModel @Inject constructor(
     private val anilibriaRepository: AnilibriaRepository,
     private val syncQueue: SyncQueue,
     private val syncScheduler: SyncScheduler,
+    private val aniSkipRepository: com.anilibrix.plus.domain.repository.AniSkipRepository,
+    private val kodikRepository: com.anilibrix.plus.domain.repository.KodikRepository,
     /**
      * Сохранение прогресса живёт дольше экрана: запись в базу не должна
      * отменяться от того, что пользователь вышел из плеера — именно в этот
@@ -115,6 +117,22 @@ class PlayerViewModel @Inject constructor(
                     )
                 }
             }
+
+            // Автоматическое получение таймкодов опенингов из AniSkip, если у серии их нет
+            if (episode.opening == null && episode.ending == null) {
+                if (settingsDataStore.aniskipEnabled.first()) {
+                    val (op, ed) = aniSkipRepository.getSkipIntervals(
+                        malId = titleId,
+                        episodeNumber = episode.ordinal,
+                        episodeLengthSeconds = episode.duration.toDouble()
+                    )
+                    if (op != null || ed != null) {
+                        updateState {
+                            copy(currentEpisode = currentEpisode?.copy(opening = op, ending = ed))
+                        }
+                    }
+                }
+            }
         }
         startAutoHideControls()
         startSaveProgressTimer()
@@ -140,13 +158,30 @@ class PlayerViewModel @Inject constructor(
                                 updateState { copy(allEpisodes = episodes) }
                                 initialize(episode, release.name.main, release.id, release.poster?.fullUrl)
                             } else {
-                                updateState {
-                                    copy(
-                                        isLoading = false,
-                                        isPlaying = false,
-                                        isBuffering = false,
-                                        playbackError = "Серия недоступна или была удалена"
-                                    )
+                                // Попытка найти стороннюю серию (Kodik)
+                                kodikRepository.getEpisodes(
+                                    shikimoriId = null,
+                                    malId = release.malId?.toLong(),
+                                    translationId = null,
+                                    kodikId = null
+                                ).collect { kodikResult ->
+                                    if (kodikResult is NetworkResult.Success && kodikResult.data.isNotEmpty()) {
+                                        val kEp = kodikResult.data.find { it.id == episodeId }
+                                            ?: kodikResult.data.firstOrNull()
+                                        if (kEp != null) {
+                                            updateState { copy(allEpisodes = kodikResult.data) }
+                                            initialize(kEp, release.name.main, release.id, release.poster?.fullUrl)
+                                            return@collect
+                                        }
+                                    }
+                                    updateState {
+                                        copy(
+                                            isLoading = false,
+                                            isPlaying = false,
+                                            isBuffering = false,
+                                            playbackError = "Серия недоступна или была удалена"
+                                        )
+                                    }
                                 }
                             }
                         }

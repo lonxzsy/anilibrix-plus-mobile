@@ -47,12 +47,19 @@ data class ProfileUiState(
     val cacheSizeBytes: Long = 0,
     val syncStatus: String = "Локальный режим",
     val showLogoutDialog: Boolean = false,
-    /** Подтверждение удаления локальных данных — операция необратима. */
     val showClearDataDialog: Boolean = false,
     val showAuthSheet: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
-    val backupMessage: String? = null
+    val backupMessage: String? = null,
+    // --- Провайдеры и сторонние озвучки ---
+    val kodikCustomToken: String = "",
+    val globalPreferredVoiceover: String = "AniLibria",
+    val aniskipEnabled: Boolean = true,
+    val consumetEnabled: Boolean = true,
+    val nyaaEnabled: Boolean = true,
+    val showKodikTokenDialog: Boolean = false,
+    val showVoiceoverPreferenceDialog: Boolean = false
 )
 
 sealed interface ProfileIntent {
@@ -95,4 +102,14 @@ sealed interface ProfileIntent {
     data class ExportBackup(val outputStream: java.io.OutputStream) : ProfileIntent
     data class ImportBackup(val inputStream: java.io.InputStream) : ProfileIntent
     data object DismissBackupMessage : ProfileIntent
+    // Озвучки и провайдеры
+    data class SetKodikCustomToken(val token: String) : ProfileIntent
+    data class SetGlobalPreferredVoiceover(val voiceover: String) : ProfileIntent
+    data class SetAniSkipEnabled(val enabled: Boolean) : ProfileIntent
+    data class SetConsumetEnabled(val enabled: Boolean) : ProfileIntent
+    data class SetNyaaEnabled(val enabled: Boolean) : ProfileIntent
+    data object ShowKodikTokenDialog : ProfileIntent
+    data object DismissKodikTokenDialog : ProfileIntent
+    data object ShowVoiceoverPreferenceDialog : ProfileIntent
+    data object DismissVoiceoverPreferenceDialog : ProfileIntent
 }

@@ -334,4 +334,17 @@ fun TitleDetailScreen(
             onDismiss = { viewModel.onIntent(DetailIntent.DismissPlaylistDialog) }
         )
     }
+
+    // Шторка выбора озвучки
+    if (state.showVoiceoverSheet) {
+        com.anilibrix.plus.ui.detail.components.VoiceoverSelectionSheet(
+            availableVoiceovers = state.availableVoiceovers,
+            selectedVoiceover = state.selectedVoiceover,
+            onSelectVoiceover = { option, rememberForTitle ->
+                viewModel.onIntent(DetailIntent.SelectVoiceover(option, rememberForTitle))
+                toastHostState?.showSuccess("Выбрана озвучка: ${option.name}")
+            },
+            onDismiss = { viewModel.onIntent(DetailIntent.DismissVoiceoverSheet) }
+        )
+    }
 }

@@ -69,6 +69,14 @@ class SettingsDataStore @Inject constructor(
         private val NOTIFICATIONS_QUIET_HOURS = booleanPreferencesKey("notifications_quiet_hours")
         private val LAST_RESUME_REMINDER_AT = longPreferencesKey("last_resume_reminder_at")
         private val LAST_UPDATE_CHECK_AT = longPreferencesKey("last_update_check_at")
+
+        // Сторонние озвучки и провайдеры
+        private val KODIK_CUSTOM_TOKEN = stringPreferencesKey("kodik_custom_token")
+        private val GLOBAL_PREFERRED_VOICEOVER = stringPreferencesKey("global_preferred_voiceover")
+        private val TITLE_VOICEOVER_MAP = stringPreferencesKey("title_voiceover_map")
+        private val ANISKIP_ENABLED = booleanPreferencesKey("aniskip_enabled")
+        private val CONSUMET_ENABLED = booleanPreferencesKey("consumet_enabled")
+        private val NYAA_ENABLED = booleanPreferencesKey("nyaa_enabled")
     }
 
     /**
@@ -357,5 +365,60 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun setLastUpdateCheckAt(timestamp: Long) {
         dataStore.edit { it[LAST_UPDATE_CHECK_AT] = timestamp }
+    }
+
+    // --- Сторонние озвучки и провайдеры ------------------------------------
+
+    val kodikCustomToken: Flow<String> = dataStore.data.map { it[KODIK_CUSTOM_TOKEN] ?: "" }
+    val globalPreferredVoiceover: Flow<String> = dataStore.data.map { it[GLOBAL_PREFERRED_VOICEOVER] ?: "AniLibria" }
+    val aniskipEnabled: Flow<Boolean> = dataStore.data.map { it[ANISKIP_ENABLED] ?: true }
+    val consumetEnabled: Flow<Boolean> = dataStore.data.map { it[CONSUMET_ENABLED] ?: true }
+    val nyaaEnabled: Flow<Boolean> = dataStore.data.map { it[NYAA_ENABLED] ?: true }
+
+    fun getTitleVoiceover(titleId: Long): Flow<String?> = dataStore.data.map { prefs ->
+        val raw = prefs[TITLE_VOICEOVER_MAP] ?: return@map null
+        val entries = raw.split(";").mapNotNull { entry ->
+            val parts = entry.split("=")
+            if (parts.size == 2) parts[0].toLongOrNull() to parts[1] else null
+        }.toMap()
+        entries[titleId]
+    }
+
+    suspend fun setTitleVoiceover(titleId: Long, voiceoverId: String?) {
+        dataStore.edit { prefs ->
+            val raw = prefs[TITLE_VOICEOVER_MAP] ?: ""
+            val entries = raw.split(";").mapNotNull { entry ->
+                val parts = entry.split("=")
+                if (parts.size == 2) parts[0].toLongOrNull() to parts[1] else null
+            }.filter { it.first != null }.map { it.first!! to it.second }.toMap().toMutableMap()
+
+            if (voiceoverId != null) {
+                entries[titleId] = voiceoverId
+            } else {
+                entries.remove(titleId)
+            }
+
+            prefs[TITLE_VOICEOVER_MAP] = entries.entries.joinToString(";") { "${it.key}=${it.value}" }
+        }
+    }
+
+    suspend fun setKodikCustomToken(token: String) {
+        dataStore.edit { it[KODIK_CUSTOM_TOKEN] = token.trim() }
+    }
+
+    suspend fun setGlobalPreferredVoiceover(voiceover: String) {
+        dataStore.edit { it[GLOBAL_PREFERRED_VOICEOVER] = voiceover.trim() }
+    }
+
+    suspend fun setAniSkipEnabled(enabled: Boolean) {
+        dataStore.edit { it[ANISKIP_ENABLED] = enabled }
+    }
+
+    suspend fun setConsumetEnabled(enabled: Boolean) {
+        dataStore.edit { it[CONSUMET_ENABLED] = enabled }
+    }
+
+    suspend fun setNyaaEnabled(enabled: Boolean) {
+        dataStore.edit { it[NYAA_ENABLED] = enabled }
     }
 }

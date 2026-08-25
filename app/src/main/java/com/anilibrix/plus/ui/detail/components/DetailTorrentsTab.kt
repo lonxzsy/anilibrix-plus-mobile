@@ -34,11 +34,33 @@ fun LazyListScope.torrentsSection(
     state: DetailUiState,
     onIntent: (DetailIntent) -> Unit
 ) {
-    if (state.torrents.isEmpty()) {
+    item {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
+            androidx.compose.material3.FilterChip(
+                selected = state.selectedTorrentSource == "anilibria",
+                onClick = { onIntent(DetailIntent.SelectTorrentSource("anilibria")) },
+                label = { Text("AniLibria (${state.torrents.size})") }
+            )
+            androidx.compose.material3.FilterChip(
+                selected = state.selectedTorrentSource == "nyaa",
+                onClick = { onIntent(DetailIntent.SelectTorrentSource("nyaa")) },
+                label = { Text("Nyaa.si (${state.nyaaTorrents.size})") }
+            )
+        }
+    }
+
+    val torrents = if (state.selectedTorrentSource == "nyaa") state.nyaaTorrents else state.torrents
+
+    if (torrents.isEmpty()) {
         item {
             EmptyState(
                 kind = EmptyKind.Torrents,
-                title = "Торренты не найдены",
+                title = if (state.selectedTorrentSource == "nyaa") "Раздачи Nyaa не найдены" else "Торренты не найдены",
                 subtitle = "Раздачи появятся после обработки релиза",
                 modifier = Modifier.padding(vertical = Spacing.xl)
             )
@@ -47,8 +69,8 @@ fun LazyListScope.torrentsSection(
     }
 
     items(
-        items = state.torrents,
-        key = { it.id }
+        items = torrents,
+        key = { "${state.selectedTorrentSource}_${it.id}" }
     ) { torrent ->
         TorrentCardItem(
             torrent = torrent,

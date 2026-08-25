@@ -447,6 +447,93 @@ fun ProfileScreen(
                     }
                 }
 
+                SettingsGroupHeader("Источники и озвучки")
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(vertical = Spacing.sm)) {
+                        SettingsItem(
+                            icon = androidx.compose.material.icons.Icons.Rounded.StarRate,
+                            title = "Предпочитаемая озвучка",
+                            supportingText = "Студия по умолчанию: ${state.globalPreferredVoiceover}",
+                            trailing = {
+                                DropdownSetting(
+                                    value = state.globalPreferredVoiceover,
+                                    options = listOf(
+                                        "AniLibria" to "AniLibria",
+                                        "Студийная Банда" to "Студийная Банда",
+                                        "Dream Cast" to "Dream Cast",
+                                        "AniDUB" to "AniDUB",
+                                        "AniStar" to "AniStar",
+                                        "SHIZA Project" to "SHIZA Project",
+                                        "Jam Club" to "Jam Club",
+                                        "Kansai" to "Kansai Studio",
+                                        "Crunchyroll" to "Crunchyroll",
+                                        "Субтитры" to "Субтитры"
+                                    ),
+                                    onSelect = {
+                                        viewModel.onIntent(ProfileIntent.SetGlobalPreferredVoiceover(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = androidx.compose.material.icons.Icons.Default.CloudSync,
+                            title = "Токен Kodik API",
+                            supportingText = if (state.kodikCustomToken.isNotBlank()) "Используется свой токен" else "Используется публичный токен",
+                            onClick = { viewModel.onIntent(ProfileIntent.ShowKodikTokenDialog) }
+                        )
+
+                        SettingsItem(
+                            icon = androidx.compose.material.icons.Icons.Rounded.SkipNext,
+                            title = "Автопропуск заставок (AniSkip)",
+                            supportingText = "Таймкоды OP/ED для сторонних озвучек",
+                            trailing = {
+                                Switch(
+                                    checked = state.aniskipEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetAniSkipEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = androidx.compose.material.icons.Icons.Default.Sync,
+                            title = "Зарубежные источники (Consumet)",
+                            supportingText = "Английский дубляж и сабы",
+                            trailing = {
+                                Switch(
+                                    checked = state.consumetEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetConsumetEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+
+                        SettingsItem(
+                            icon = androidx.compose.material.icons.Icons.Rounded.Download,
+                            title = "Торренты Nyaa.si",
+                            supportingText = "Поиск раздач в оригинале на Nyaa",
+                            trailing = {
+                                Switch(
+                                    checked = state.nyaaEnabled,
+                                    onCheckedChange = {
+                                        viewModel.onIntent(ProfileIntent.SetNyaaEnabled(it))
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
                 SettingsGroupHeader("Синхронизация с Shikimori")
 
                 Card(
@@ -833,6 +920,45 @@ fun ProfileScreen(
                     dismissButton = {
                         TextButton(
                             onClick = { viewModel.onIntent(ProfileIntent.DismissClearDataDialog) }
+                        ) {
+                            Text("Отмена")
+                        }
+                    }
+                )
+            }
+
+            if (state.showKodikTokenDialog) {
+                var tokenInput by remember { mutableStateOf(state.kodikCustomToken) }
+                AlertDialog(
+                    onDismissRequest = { viewModel.onIntent(ProfileIntent.DismissKodikTokenDialog) },
+                    title = { Text("Токен Kodik API") },
+                    text = {
+                        Column {
+                            Text(
+                                "Укажите свой персональный токен Kodik или оставьте поле пустым для использования публичного.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedTextField(
+                                value = tokenInput,
+                                onValueChange = { tokenInput = it },
+                                label = { Text("API Token") },
+                                placeholder = { Text("Публичный по умолчанию") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = { viewModel.onIntent(ProfileIntent.SetKodikCustomToken(tokenInput)) }
+                        ) {
+                            Text("Сохранить")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { viewModel.onIntent(ProfileIntent.DismissKodikTokenDialog) }
                         ) {
                             Text("Отмена")
                         }

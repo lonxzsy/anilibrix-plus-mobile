@@ -161,6 +161,30 @@ class ProfileViewModel @Inject constructor(
             }
             ProfileIntent.DismissBackupMessage -> _state.update { it.copy(backupMessage = null) }
             ProfileIntent.NavigateToChangelog -> {}
+            is ProfileIntent.SetKodikCustomToken -> viewModelScope.launch {
+                settingsDataStore.setKodikCustomToken(intent.token)
+                _state.update { it.copy(kodikCustomToken = intent.token, showKodikTokenDialog = false) }
+            }
+            is ProfileIntent.SetGlobalPreferredVoiceover -> viewModelScope.launch {
+                settingsDataStore.setGlobalPreferredVoiceover(intent.voiceover)
+                _state.update { it.copy(globalPreferredVoiceover = intent.voiceover, showVoiceoverPreferenceDialog = false) }
+            }
+            is ProfileIntent.SetAniSkipEnabled -> viewModelScope.launch {
+                settingsDataStore.setAniSkipEnabled(intent.enabled)
+                _state.update { it.copy(aniskipEnabled = intent.enabled) }
+            }
+            is ProfileIntent.SetConsumetEnabled -> viewModelScope.launch {
+                settingsDataStore.setConsumetEnabled(intent.enabled)
+                _state.update { it.copy(consumetEnabled = intent.enabled) }
+            }
+            is ProfileIntent.SetNyaaEnabled -> viewModelScope.launch {
+                settingsDataStore.setNyaaEnabled(intent.enabled)
+                _state.update { it.copy(nyaaEnabled = intent.enabled) }
+            }
+            ProfileIntent.ShowKodikTokenDialog -> _state.update { it.copy(showKodikTokenDialog = true) }
+            ProfileIntent.DismissKodikTokenDialog -> _state.update { it.copy(showKodikTokenDialog = false) }
+            ProfileIntent.ShowVoiceoverPreferenceDialog -> _state.update { it.copy(showVoiceoverPreferenceDialog = true) }
+            ProfileIntent.DismissVoiceoverPreferenceDialog -> _state.update { it.copy(showVoiceoverPreferenceDialog = false) }
         }
     }
 
@@ -191,6 +215,11 @@ class ProfileViewModel @Inject constructor(
             val shikimoriLastSync = settingsDataStore.shikimoriLastSync.first()
             val shikimoriPushStatus = settingsDataStore.shikimoriPushStatus.first()
             val shikimoriPushRatings = settingsDataStore.shikimoriPushRatings.first()
+            val kodikCustomToken = settingsDataStore.kodikCustomToken.first()
+            val globalPreferredVoiceover = settingsDataStore.globalPreferredVoiceover.first()
+            val aniskipEnabled = settingsDataStore.aniskipEnabled.first()
+            val consumetEnabled = settingsDataStore.consumetEnabled.first()
+            val nyaaEnabled = settingsDataStore.nyaaEnabled.first()
 
             _state.update {
                 it.copy(
@@ -219,7 +248,12 @@ class ProfileViewModel @Inject constructor(
                     shikimoriPushStatus = shikimoriPushStatus,
                     shikimoriPushRatings = shikimoriPushRatings,
                     cacheSizeBytes = calculateCacheSize(),
-                    syncStatus = if (token != null) "Синхронизация включена" else "Локальный режим"
+                    syncStatus = if (token != null) "Синхронизация включена" else "Локальный режим",
+                    kodikCustomToken = kodikCustomToken,
+                    globalPreferredVoiceover = globalPreferredVoiceover,
+                    aniskipEnabled = aniskipEnabled,
+                    consumetEnabled = consumetEnabled,
+                    nyaaEnabled = nyaaEnabled
                 )
             }
 

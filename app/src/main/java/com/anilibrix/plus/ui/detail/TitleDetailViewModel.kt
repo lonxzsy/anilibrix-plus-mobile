@@ -51,7 +51,10 @@ class TitleDetailViewModel @Inject constructor(
     private val manageCollections: ManageCollectionsUseCase,
     private val syncQueue: SyncQueue,
     private val syncScheduler: SyncScheduler,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val kodikRepository: com.anilibrix.plus.domain.repository.KodikRepository,
+    private val consumetRepository: com.anilibrix.plus.domain.repository.ConsumetRepository,
+    private val nyaaRepository: com.anilibrix.plus.domain.repository.NyaaRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DetailUiState())
@@ -80,6 +83,10 @@ class TitleDetailViewModel @Inject constructor(
             is DetailIntent.OpenMagnet -> {}
             is DetailIntent.OpenScreenshot -> _state.update { it.copy(fullscreenScreenshot = intent.index) }
             DetailIntent.CloseScreenshot -> _state.update { it.copy(fullscreenScreenshot = null) }
+            DetailIntent.ShowVoiceoverSheet -> _state.update { it.copy(showVoiceoverSheet = true) }
+            DetailIntent.DismissVoiceoverSheet -> _state.update { it.copy(showVoiceoverSheet = false) }
+            is DetailIntent.SelectVoiceover -> selectVoiceover(intent.option, intent.rememberForTitle)
+            is DetailIntent.SelectTorrentSource -> selectTorrentSource(intent.source)
         }
     }
 
@@ -388,7 +395,9 @@ class TitleDetailViewModel @Inject constructor(
                     loadShikimoriData(shikimoriId)
                     loadShikimoriRelated(title, shikimoriId)
                     loadScreenshots(shikimoriId)
+                    loadVoiceovers(title, shikimoriId, malId)
                 }
+                launch { loadNyaaTorrents(title) }
             }
         }
     }
@@ -801,5 +810,116 @@ class TitleDetailViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun loadVoiceovers(title: Title, shikimoriId: Int?, malId: Long?) {
+        viewModelScope.launch {
+            _state.update { it.copy(isVoiceoverLoading = true) }
+            val anilibriaOption = com.anilibrix.plus.domain.model.VoiceoverOption(
+                id = "anilibria",
+                name = "AniLibria",
+                provider = com.anilibrix.plus.domain.model.VoiceoverProvider.ANILIBRIA,
+                type = com.anilibrix.plus.domain.model.VoiceoverType.VOICE,
+                episodesCount = title.episodes?.size,
+                isDefault = true
+            )
+            val initialList = listOf(anilibriaOption)
+            _state.update { it.copy(availableVoiceovers = initialList) }
+
+            kodikRepository.getVoiceovers(shikimoriId, malId, title.name.main)
+                .catch { }
+                .collect { result ->
+                    if (result is NetworkResult.Success) {
+                        val combined = (listOf(anilibriaOption) + result.data).distinctBy { it.id }
+                        _state.update { it.copy(availableVoiceovers = combined, isVoiceoverLoading = false) }
+                        applyPreferredVoiceover(title, combined)
+                    }
+                }
+        }
+    }
+
+    private suspend fun applyPreferredVoiceover(title: Title, options: List<com.anilibrix.plus.domain.model.VoiceoverOption>) {
+        val titlePreference = settingsDataStore.getTitleVoiceover(title.id).first()
+        val globalPreference = settingsDataStore.globalPreferredVoiceover.first()
+
+        val matchingOption = when {
+            titlePreference != null -> options.find { it.id == titlePreference }
+            globalPreference.isNotBlank() && !globalPreference.equals("AniLibria", ignoreCase = true) -> {
+                options.find { it.name.contains(globalPreference, ignoreCase = true) }
+            }
+            else -> null
+        } ?: options.find { it.isDefault } ?: options.firstOrNull()
+
+        matchingOption?.let { opt ->
+            if (opt.provider != com.anilibrix.plus.domain.model.VoiceoverProvider.ANILIBRIA && _state.value.selectedVoiceover?.id != opt.id) {
+                selectVoiceover(opt, rememberForTitle = false)
+            } else if (_state.value.selectedVoiceover == null) {
+                _state.update { it.copy(selectedVoiceover = opt) }
+            }
+        }
+    }
+
+    private fun selectVoiceover(option: com.anilibrix.plus.domain.model.VoiceoverOption, rememberForTitle: Boolean) {
+        viewModelScope.launch {
+            val title = _state.value.title ?: return@launch
+            _state.update { it.copy(selectedVoiceover = option, showVoiceoverSheet = false) }
+
+            if (rememberForTitle) {
+                settingsDataStore.setTitleVoiceover(title.id, option.id)
+            }
+
+            if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.ANILIBRIA) {
+                _state.update { it.copy(voiceoverEpisodes = null, isVoiceoverLoading = false) }
+            } else if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.KODIK) {
+                _state.update { it.copy(isVoiceoverLoading = true) }
+                kodikRepository.getEpisodes(
+                    shikimoriId = _state.value.shikimoriId,
+                    malId = _state.value.malId,
+                    translationId = option.translationId,
+                    kodikId = option.id.removePrefix("kodik_")
+                ).collect { epResult ->
+                    when (epResult) {
+                        is NetworkResult.Success -> {
+                            _state.update { it.copy(voiceoverEpisodes = epResult.data, isVoiceoverLoading = false) }
+                        }
+                        is NetworkResult.Error -> {
+                            _state.update { it.copy(isVoiceoverLoading = false) }
+                        }
+                        NetworkResult.Loading -> {}
+                    }
+                }
+            } else if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.CONSUMET) {
+                _state.update { it.copy(isVoiceoverLoading = true) }
+                consumetRepository.getEpisodes(option.id).collect { epResult ->
+                    when (epResult) {
+                        is NetworkResult.Success -> {
+                            _state.update { it.copy(voiceoverEpisodes = epResult.data, isVoiceoverLoading = false) }
+                        }
+                        is NetworkResult.Error -> {
+                            _state.update { it.copy(isVoiceoverLoading = false) }
+                        }
+                        NetworkResult.Loading -> {}
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadNyaaTorrents(title: Title) {
+        viewModelScope.launch {
+            if (!settingsDataStore.nyaaEnabled.first()) return@launch
+            val query = title.name.english ?: Transliteration.transliterate(title.name.main)
+            nyaaRepository.searchTorrents(query)
+                .catch { }
+                .collect { result ->
+                    if (result is NetworkResult.Success) {
+                        _state.update { it.copy(nyaaTorrents = result.data) }
+                    }
+                }
+        }
+    }
+
+    private fun selectTorrentSource(source: String) {
+        _state.update { it.copy(selectedTorrentSource = source) }
     }
 }
