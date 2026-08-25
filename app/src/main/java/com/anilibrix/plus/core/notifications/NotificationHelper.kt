@@ -61,6 +61,14 @@ class NotificationHelper @Inject constructor(
                 setShowBadge(false)
             },
             NotificationChannel(
+                CHANNEL_TORRENTS,
+                "Торренты",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Ход скачивания торрент-раздач и серий"
+                setShowBadge(false)
+            },
+            NotificationChannel(
                 RESUME_CHANNEL_ID,
                 "Напоминания о просмотре",
                 NotificationManager.IMPORTANCE_LOW
@@ -247,6 +255,38 @@ class NotificationHelper @Inject constructor(
             .build()
     }
 
+    fun buildTorrentProgressNotification(
+        activeCount: Int,
+        titleName: String,
+        progressPercent: Int,
+        speedStr: String
+    ): Notification {
+        val openApp = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_DOWNLOADS, true)
+        }
+        val pending = PendingIntent.getActivity(
+            context,
+            TORRENT_REQUEST_CODE,
+            openApp,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val title = if (activeCount > 1) "Скачивание торрентов ($activeCount)" else "Скачивание: $titleName"
+        val subtitle = "$progressPercent% · $speedStr"
+
+        return NotificationCompat.Builder(context, CHANNEL_TORRENTS)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(title)
+            .setContentText(subtitle)
+            .setContentIntent(pending)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setProgress(100, progressPercent, progressPercent <= 0)
+            .build()
+    }
+
     private fun buildEpisodesSummary(): Notification =
         NotificationCompat.Builder(context, NEW_EPISODES_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -283,6 +323,7 @@ class NotificationHelper @Inject constructor(
         const val APP_UPDATES_CHANNEL_ID = "app_updates"
         const val SYNC_STATUS_CHANNEL_ID = "sync_status"
         const val CHANNEL_DOWNLOADS = "downloads"
+        const val CHANNEL_TORRENTS = "torrent_downloads"
         const val RESUME_CHANNEL_ID = "resume_reminder"
 
         const val EXTRA_TITLE_ID = "title_id"
@@ -298,6 +339,7 @@ class NotificationHelper @Inject constructor(
         private const val SYNC_NOTIFICATION_ID = 30_003
         private const val UPDATE_REQUEST_CODE = 41_001
         private const val DOWNLOADS_REQUEST_CODE = 41_002
+        private const val TORRENT_REQUEST_CODE = 41_003
         private const val WATCH_REQUEST_OFFSET = 100_000L
         private const val RESUME_REQUEST_OFFSET = 200_000L
     }

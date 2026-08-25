@@ -104,7 +104,14 @@ data class DetailUiState(
     val voiceoverEpisodes: List<Episode>? = null,
     val showVoiceoverSheet: Boolean = false,
     val nyaaTorrents: List<Torrent> = emptyList(),
-    val selectedTorrentSource: String = "anilibria"
+    val selectedTorrentSource: String = "anilibria",
+    val torrentSearchQuery: String = "",
+    val selectedTorrentEpisodeFilter: Int? = null,
+    val selectedTorrentQualityFilter: String? = null,
+    val selectedTorrentForDownload: Torrent? = null,
+    val torrentMetadataLoading: Boolean = false,
+    val torrentResolvedMetadata: com.anilibrix.plus.core.torrent.TorrentMetadataResolver.ResolvedMetadata? = null,
+    val activeTorrentTasks: List<com.anilibrix.plus.core.torrent.TorrentTaskInfo> = emptyList()
 )
 
 sealed interface DetailIntent {
@@ -136,5 +143,12 @@ sealed interface DetailIntent {
     data object DismissVoiceoverSheet : DetailIntent
     data class SelectVoiceover(val option: com.anilibrix.plus.domain.model.VoiceoverOption, val rememberForTitle: Boolean = false) : DetailIntent
     data class SelectTorrentSource(val source: String) : DetailIntent
+    // Торренты: поиск, фильтры и встроенная загрузка
+    data class SetTorrentSearchQuery(val query: String) : DetailIntent
+    data class SetTorrentEpisodeFilter(val episodeNumber: Int?) : DetailIntent
+    data class SetTorrentQualityFilter(val quality: String?) : DetailIntent
+    data class ClickTorrent(val torrent: Torrent) : DetailIntent
+    data object DismissTorrentDialog : DetailIntent
+    data class StartTorrentDownload(val torrent: Torrent, val selectedIndices: Set<Int>? = null) : DetailIntent
 }
 

@@ -68,6 +68,12 @@
             </intent-filter>
         </service>
 
+        <!-- Встроенный сервис загрузки торрентов -->
+        <service
+            android:name=".core.torrent.TorrentDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- Фоновое воспроизведение и контролы на экране блокировки. -->
         <service
             android:name=".core.playback.PlaybackService"

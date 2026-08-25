@@ -19,6 +19,7 @@ class AniSkipRepositoryImpl @Inject constructor(
         if (malId <= 0 || episodeNumber <= 0) return Pair(null, null)
 
         return try {
+            android.util.Log.d("AniSkipRepo", "Query skip times for malId=$malId, ep=$episodeNumber, len=$episodeLengthSeconds")
             val response = api.getSkipTimes(
                 malId = malId,
                 episodeNumber = episodeNumber,
@@ -26,6 +27,7 @@ class AniSkipRepositoryImpl @Inject constructor(
             )
 
             if (!response.found || response.results.isEmpty()) {
+                android.util.Log.d("AniSkipRepo", "No skip times found for malId=$malId, ep=$episodeNumber")
                 return Pair(null, null)
             }
 
@@ -51,8 +53,10 @@ class AniSkipRepositoryImpl @Inject constructor(
                 }
             }
 
+            android.util.Log.d("AniSkipRepo", "AniSkip resolved: op=$opening, ed=$ending")
             Pair(opening, ending)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("AniSkipRepo", "AniSkip request failed: ${e.message}")
             Pair(null, null)
         }
     }

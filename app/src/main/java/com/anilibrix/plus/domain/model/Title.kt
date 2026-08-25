@@ -110,7 +110,16 @@ data class Torrent(
     val size: Long?,
     val magnet: String?,
     val seeders: Int?,
-    val leechers: Int?
+    val leechers: Int?,
+    val rawTitle: String? = null,
+    val releaseGroup: String? = null,
+    val cleanTitle: String? = null,
+    val episodeNumbers: List<Int> = emptyList(),
+    val isBatch: Boolean = false,
+    val videoCodec: String? = null,
+    val audioInfo: String? = null,
+    val subtitleInfo: String? = null,
+    val torrentUrl: String? = null
 )
 
 data class User(

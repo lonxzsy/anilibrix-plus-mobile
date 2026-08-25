@@ -67,7 +67,7 @@ fun VoiceoverSelectionSheet(
 
     val primaryOptions = filteredList.filter { it.provider == VoiceoverProvider.ANILIBRIA }
     val ruVoiceOptions = filteredList.filter { it.provider == VoiceoverProvider.KODIK && it.type == VoiceoverType.VOICE }
-    val subOptions = filteredList.filter { it.type == VoiceoverType.SUBTITLES }
+    val subOptions = filteredList.filter { it.type == VoiceoverType.SUBTITLES && it.provider != VoiceoverProvider.CONSUMET && it.provider != VoiceoverProvider.ANIFY }
     val foreignOptions = filteredList.filter { it.provider == VoiceoverProvider.CONSUMET || it.provider == VoiceoverProvider.ANIFY }
 
     ModalBottomSheet(

@@ -11,8 +11,10 @@ class AuthInterceptor @Inject constructor(
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
+        val host = chain.request().url.host
+        val isAnilibriaHost = host.contains("anilib", ignoreCase = true)
         val token = authTokenProvider.currentToken()
-        val request = if (token.isNullOrBlank()) {
+        val request = if (token.isNullOrBlank() || !isAnilibriaHost) {
             chain.request()
         } else {
             chain.request().newBuilder()

@@ -89,7 +89,7 @@ fun LazyListScope.episodesSection(
         Spacer(Modifier.height(Spacing.xs))
     }
 
-    if (state.isVoiceoverLoading) {
+    if (state.isVoiceoverLoading && episodes.isEmpty()) {
         item {
             Box(
                 modifier = Modifier

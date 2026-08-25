@@ -33,9 +33,10 @@ import com.anilibrix.plus.core.database.entity.SyncOperationEntity
         RatingEntity::class,
         CollectionEntity::class,
         DownloadEntity::class,
-        SyncOperationEntity::class
+        SyncOperationEntity::class,
+        com.anilibrix.plus.core.database.entity.TorrentDownloadEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AnilibrixDatabase : RoomDatabase() {
@@ -47,4 +48,5 @@ abstract class AnilibrixDatabase : RoomDatabase() {
     abstract fun collectionDao(): CollectionDao
     abstract fun downloadDao(): DownloadDao
     abstract fun syncOperationDao(): SyncOperationDao
+    abstract fun torrentDownloadDao(): com.anilibrix.plus.core.database.dao.TorrentDownloadDao
 }

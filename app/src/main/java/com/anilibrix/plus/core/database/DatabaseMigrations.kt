@@ -51,11 +51,18 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        ensureCurrentSchema(db)
+    }
+}
+
 val ANILIBRIX_MIGRATIONS = arrayOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
     MIGRATION_3_4,
-    MIGRATION_4_5
+    MIGRATION_4_5,
+    MIGRATION_5_6
 )
 
 private fun ensureCurrentSchema(db: SupportSQLiteDatabase) {
@@ -197,6 +204,31 @@ private fun ensureCurrentSchema(db: SupportSQLiteDatabase) {
         )
         """.trimIndent()
     )
+
+    db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS torrent_downloads (
+            id TEXT NOT NULL PRIMARY KEY,
+            titleId INTEGER NOT NULL,
+            titleName TEXT NOT NULL DEFAULT '',
+            posterUrl TEXT,
+            torrentName TEXT NOT NULL DEFAULT '',
+            releaseGroup TEXT,
+            quality TEXT,
+            magnetOrUrl TEXT NOT NULL DEFAULT '',
+            state TEXT NOT NULL DEFAULT 'QUEUED',
+            progress REAL NOT NULL DEFAULT 0,
+            downloadedBytes INTEGER NOT NULL DEFAULT 0,
+            totalBytes INTEGER NOT NULL DEFAULT 0,
+            filesJson TEXT NOT NULL DEFAULT '[]',
+            saveDirectory TEXT NOT NULL DEFAULT '',
+            errorMessage TEXT,
+            createdAt INTEGER NOT NULL DEFAULT 0,
+            completedAt INTEGER
+        )
+        """.trimIndent()
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS index_torrent_downloads_titleId ON torrent_downloads(titleId)")
 }
 
 private fun SupportSQLiteDatabase.hasTable(table: String): Boolean {

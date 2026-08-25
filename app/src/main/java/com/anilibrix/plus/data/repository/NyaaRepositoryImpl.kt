@@ -82,17 +82,29 @@ class NyaaRepositoryImpl @Inject constructor(
                         if (tagName.equals("item", ignoreCase = true)) {
                             inItem = false
                             if (currentTitle != null) {
-                                val quality = extractQuality(currentTitle)
+                                val parsed = com.anilibrix.plus.core.torrent.TorrentNameParser.parse(currentTitle)
                                 val id = (currentGuid ?: currentTitle).hashCode().toLong().let { if (it < 0) -it else it }
+                                val torrentDownloadUrl = currentGuid?.takeIf { it.startsWith("http") }?.let {
+                                    if (it.contains("/view/")) it.replace("/view/", "/download/") + ".torrent" else null
+                                }
                                 torrents.add(
                                     Torrent(
                                         id = id,
-                                        quality = quality,
-                                        series = currentTitle,
+                                        quality = parsed.quality,
+                                        series = parsed.episodeLabel,
                                         size = parseSizeToBytes(currentSize),
                                         magnet = currentMagnet ?: "",
                                         seeders = currentSeeders ?: 0,
-                                        leechers = currentLeechers ?: 0
+                                        leechers = currentLeechers ?: 0,
+                                        rawTitle = currentTitle,
+                                        releaseGroup = parsed.releaseGroup,
+                                        cleanTitle = parsed.cleanTitle,
+                                        episodeNumbers = parsed.episodeNumbers,
+                                        isBatch = parsed.isBatch,
+                                        videoCodec = parsed.videoCodec,
+                                        audioInfo = parsed.audioInfo,
+                                        subtitleInfo = parsed.subtitleInfo,
+                                        torrentUrl = torrentDownloadUrl
                                     )
                                 )
                             }

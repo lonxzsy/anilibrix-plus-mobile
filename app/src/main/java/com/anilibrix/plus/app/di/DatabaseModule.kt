@@ -58,4 +58,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSyncOperationDao(db: AnilibrixDatabase): SyncOperationDao = db.syncOperationDao()
+
+    @Provides
+    fun provideTorrentDownloadDao(db: AnilibrixDatabase): com.anilibrix.plus.core.database.dao.TorrentDownloadDao = db.torrentDownloadDao()
 }

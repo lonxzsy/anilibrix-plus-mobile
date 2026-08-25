@@ -19,6 +19,7 @@ import com.anilibrix.plus.domain.model.ShikimoriAnime
 import com.anilibrix.plus.domain.model.ShikimoriCharacter
 import com.anilibrix.plus.domain.model.ShikimoriRelated
 import com.anilibrix.plus.domain.model.Title
+import com.anilibrix.plus.domain.model.Torrent
 import com.anilibrix.plus.domain.repository.AnilibriaRepository
 import com.anilibrix.plus.domain.repository.JikanRepository
 import com.anilibrix.plus.domain.repository.LocalRepository
@@ -54,11 +55,24 @@ class TitleDetailViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
     private val kodikRepository: com.anilibrix.plus.domain.repository.KodikRepository,
     private val consumetRepository: com.anilibrix.plus.domain.repository.ConsumetRepository,
-    private val nyaaRepository: com.anilibrix.plus.domain.repository.NyaaRepository
+    private val nyaaRepository: com.anilibrix.plus.domain.repository.NyaaRepository,
+    private val torrentDownloadManager: com.anilibrix.plus.core.torrent.TorrentDownloadManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DetailUiState())
     val state: StateFlow<DetailUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            torrentDownloadManager.activeTasks.collect { allTasks ->
+                val currentTitleId = _state.value.title?.id
+                if (currentTitleId != null) {
+                    val matching = allTasks.filter { it.titleId == currentTitleId }
+                    _state.update { it.copy(activeTorrentTasks = matching) }
+                }
+            }
+        }
+    }
 
     fun onIntent(intent: DetailIntent) {
         when (intent) {
@@ -87,6 +101,12 @@ class TitleDetailViewModel @Inject constructor(
             DetailIntent.DismissVoiceoverSheet -> _state.update { it.copy(showVoiceoverSheet = false) }
             is DetailIntent.SelectVoiceover -> selectVoiceover(intent.option, intent.rememberForTitle)
             is DetailIntent.SelectTorrentSource -> selectTorrentSource(intent.source)
+            is DetailIntent.SetTorrentSearchQuery -> _state.update { it.copy(torrentSearchQuery = intent.query) }
+            is DetailIntent.SetTorrentEpisodeFilter -> _state.update { it.copy(selectedTorrentEpisodeFilter = intent.episodeNumber) }
+            is DetailIntent.SetTorrentQualityFilter -> _state.update { it.copy(selectedTorrentQualityFilter = intent.quality) }
+            is DetailIntent.ClickTorrent -> clickTorrent(intent.torrent)
+            DetailIntent.DismissTorrentDialog -> _state.update { it.copy(selectedTorrentForDownload = null, torrentResolvedMetadata = null, torrentMetadataLoading = false) }
+            is DetailIntent.StartTorrentDownload -> startTorrentDownload(intent.torrent, intent.selectedIndices)
         }
     }
 
@@ -824,17 +844,50 @@ class TitleDetailViewModel @Inject constructor(
                 isDefault = true
             )
             val initialList = listOf(anilibriaOption)
-            _state.update { it.copy(availableVoiceovers = initialList) }
+            _state.update {
+                it.copy(
+                    availableVoiceovers = initialList,
+                    selectedVoiceover = it.selectedVoiceover ?: anilibriaOption
+                )
+            }
 
-            kodikRepository.getVoiceovers(shikimoriId, malId, title.name.main)
-                .catch { }
-                .collect { result ->
-                    if (result is NetworkResult.Success) {
-                        val combined = (listOf(anilibriaOption) + result.data).distinctBy { it.id }
-                        _state.update { it.copy(availableVoiceovers = combined, isVoiceoverLoading = false) }
-                        applyPreferredVoiceover(title, combined)
+            addDebug("Start searching voiceovers for '${title.name.main}' (shikimoriId=$shikimoriId, malId=$malId)")
+
+            var kodikOptions = emptyList<com.anilibrix.plus.domain.model.VoiceoverOption>()
+            var consumetOptions = emptyList<com.anilibrix.plus.domain.model.VoiceoverOption>()
+
+            val searchJob1 = launch {
+                kodikRepository.getVoiceovers(shikimoriId, malId, title.name.main)
+                    .catch { e -> addDebug("Kodik voiceovers exception: ${e.message}") }
+                    .collect { result ->
+                        if (result is NetworkResult.Success) {
+                            kodikOptions = result.data
+                            addDebug("Kodik returned ${result.data.size} voiceovers/subs")
+                            val combined = (listOf(anilibriaOption) + kodikOptions + consumetOptions).distinctBy { it.id }
+                            _state.update { it.copy(availableVoiceovers = combined) }
+                            applyPreferredVoiceover(title, combined)
+                        }
                     }
-                }
+            }
+
+            val searchJob2 = launch {
+                val enQuery = title.name.english ?: Transliteration.transliterate(title.name.main)
+                consumetRepository.searchAndGetVoiceovers(enQuery)
+                    .catch { e -> addDebug("Consumet voiceovers exception: ${e.message}") }
+                    .collect { result ->
+                        if (result is NetworkResult.Success) {
+                            consumetOptions = result.data
+                            addDebug("Consumet returned ${result.data.size} streams")
+                            val combined = (listOf(anilibriaOption) + kodikOptions + consumetOptions).distinctBy { it.id }
+                            _state.update { it.copy(availableVoiceovers = combined) }
+                            applyPreferredVoiceover(title, combined)
+                        }
+                    }
+            }
+
+            searchJob1.join()
+            searchJob2.join()
+            _state.update { it.copy(isVoiceoverLoading = false) }
         }
     }
 
@@ -850,6 +903,8 @@ class TitleDetailViewModel @Inject constructor(
             else -> null
         } ?: options.find { it.isDefault } ?: options.firstOrNull()
 
+        addDebug("Voiceover match result: titlePref=$titlePreference, globalPref='$globalPreference' -> selected='${matchingOption?.name}'")
+
         matchingOption?.let { opt ->
             if (opt.provider != com.anilibrix.plus.domain.model.VoiceoverProvider.ANILIBRIA && _state.value.selectedVoiceover?.id != opt.id) {
                 selectVoiceover(opt, rememberForTitle = false)
@@ -862,6 +917,7 @@ class TitleDetailViewModel @Inject constructor(
     private fun selectVoiceover(option: com.anilibrix.plus.domain.model.VoiceoverOption, rememberForTitle: Boolean) {
         viewModelScope.launch {
             val title = _state.value.title ?: return@launch
+            addDebug("Select voiceover: '${option.name}' (provider=${option.provider}, remember=$rememberForTitle)")
             _state.update { it.copy(selectedVoiceover = option, showVoiceoverSheet = false) }
 
             if (rememberForTitle) {
@@ -872,17 +928,25 @@ class TitleDetailViewModel @Inject constructor(
                 _state.update { it.copy(voiceoverEpisodes = null, isVoiceoverLoading = false) }
             } else if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.KODIK) {
                 _state.update { it.copy(isVoiceoverLoading = true) }
+                addDebug("Loading Kodik episodes for translationId=${option.translationId}, shikimoriId=${_state.value.shikimoriId}...")
                 kodikRepository.getEpisodes(
                     shikimoriId = _state.value.shikimoriId,
                     malId = _state.value.malId,
                     translationId = option.translationId,
                     kodikId = option.id.removePrefix("kodik_")
-                ).collect { epResult ->
+                )
+                .catch { e ->
+                    addDebug("Kodik episodes exception: ${e.message}")
+                    _state.update { it.copy(isVoiceoverLoading = false) }
+                }
+                .collect { epResult ->
                     when (epResult) {
                         is NetworkResult.Success -> {
+                            addDebug("Kodik episodes loaded: ${epResult.data.size} episodes found")
                             _state.update { it.copy(voiceoverEpisodes = epResult.data, isVoiceoverLoading = false) }
                         }
                         is NetworkResult.Error -> {
+                            addDebug("Kodik episodes error: ${epResult.message}")
                             _state.update { it.copy(isVoiceoverLoading = false) }
                         }
                         NetworkResult.Loading -> {}
@@ -890,12 +954,20 @@ class TitleDetailViewModel @Inject constructor(
                 }
             } else if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.CONSUMET) {
                 _state.update { it.copy(isVoiceoverLoading = true) }
-                consumetRepository.getEpisodes(option.id).collect { epResult ->
+                addDebug("Loading Consumet episodes for id=${option.id}...")
+                consumetRepository.getEpisodes(option.id)
+                .catch { e ->
+                    addDebug("Consumet episodes exception: ${e.message}")
+                    _state.update { it.copy(isVoiceoverLoading = false) }
+                }
+                .collect { epResult ->
                     when (epResult) {
                         is NetworkResult.Success -> {
+                            addDebug("Consumet episodes loaded: ${epResult.data.size} episodes found")
                             _state.update { it.copy(voiceoverEpisodes = epResult.data, isVoiceoverLoading = false) }
                         }
                         is NetworkResult.Error -> {
+                            addDebug("Consumet episodes error: ${epResult.message}")
                             _state.update { it.copy(isVoiceoverLoading = false) }
                         }
                         NetworkResult.Loading -> {}
@@ -907,12 +979,17 @@ class TitleDetailViewModel @Inject constructor(
 
     private fun loadNyaaTorrents(title: Title) {
         viewModelScope.launch {
-            if (!settingsDataStore.nyaaEnabled.first()) return@launch
+            if (!settingsDataStore.nyaaEnabled.first()) {
+                addDebug("Nyaa torrents disabled in settings")
+                return@launch
+            }
             val query = title.name.english ?: Transliteration.transliterate(title.name.main)
+            addDebug("Search Nyaa torrents for query='$query'")
             nyaaRepository.searchTorrents(query)
-                .catch { }
+                .catch { e -> addDebug("Nyaa torrents exception: ${e.message}") }
                 .collect { result ->
                     if (result is NetworkResult.Success) {
+                        addDebug("Nyaa torrents loaded: ${result.data.size} found")
                         _state.update { it.copy(nyaaTorrents = result.data) }
                     }
                 }
@@ -920,6 +997,39 @@ class TitleDetailViewModel @Inject constructor(
     }
 
     private fun selectTorrentSource(source: String) {
+        addDebug("Selected torrent source: $source")
         _state.update { it.copy(selectedTorrentSource = source) }
+    }
+
+    private fun clickTorrent(torrent: Torrent) {
+        _state.update {
+            it.copy(
+                selectedTorrentForDownload = torrent,
+                torrentMetadataLoading = true,
+                torrentResolvedMetadata = null
+            )
+        }
+        viewModelScope.launch {
+            val magnetOrUrl = torrent.torrentUrl ?: torrent.magnet ?: ""
+            val meta = torrentDownloadManager.resolveMetadata(magnetOrUrl, torrent.series ?: "Торрент")
+            _state.update {
+                it.copy(
+                    torrentMetadataLoading = false,
+                    torrentResolvedMetadata = meta
+                )
+            }
+        }
+    }
+
+    private fun startTorrentDownload(torrent: Torrent, selectedIndices: Set<Int>?) {
+        val title = _state.value.title ?: return
+        addDebug("Start built-in torrent download: ${torrent.series ?: torrent.rawTitle}, selectedIndices=$selectedIndices")
+        torrentDownloadManager.startDownload(
+            titleId = title.id,
+            titleName = title.name.main,
+            posterUrl = title.poster?.original ?: title.poster?.medium,
+            torrent = torrent,
+            selectedIndices = selectedIndices
+        )
     }
 }

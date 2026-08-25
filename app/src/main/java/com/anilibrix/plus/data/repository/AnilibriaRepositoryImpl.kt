@@ -448,15 +448,27 @@ class AnilibriaRepositoryImpl @Inject constructor(
         ending = ending?.let { SkipRange(it.start ?: 0.0, it.stop ?: 0.0) }
     )
 
-    private fun com.anilibrix.plus.data.remote.dto.TorrentDto.toDomain(): Torrent = Torrent(
-        id = id.toLong(),
-        quality = quality?.value,
-        series = series,
-        size = size,
-        magnet = magnet,
-        seeders = seeders,
-        leechers = leechers
-    )
+    private fun com.anilibrix.plus.data.remote.dto.TorrentDto.toDomain(): Torrent {
+        val parsed = com.anilibrix.plus.core.torrent.TorrentNameParser.parse("[AniLibria] ${series.orEmpty()} [${quality?.value.orEmpty()}]")
+        return Torrent(
+            id = id.toLong(),
+            quality = quality?.value ?: parsed.quality,
+            series = if (!series.isNullOrBlank()) series else parsed.episodeLabel,
+            size = size,
+            magnet = magnet,
+            seeders = seeders,
+            leechers = leechers,
+            rawTitle = series,
+            releaseGroup = "AniLibria",
+            cleanTitle = null,
+            episodeNumbers = parsed.episodeNumbers,
+            isBatch = parsed.isBatch || (parsed.episodeNumbers.size > 1),
+            videoCodec = parsed.videoCodec,
+            audioInfo = "RUS (AniLibria)",
+            subtitleInfo = null,
+            torrentUrl = "https://anilibria.top/public/torrent/download.php?id=$id"
+        )
+    }
 
     private fun ReleaseDto.toHistoryEntry(): HistoryEntry {
         val firstEpisode = episodes?.firstOrNull()

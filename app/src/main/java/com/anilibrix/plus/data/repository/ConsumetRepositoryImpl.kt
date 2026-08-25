@@ -21,6 +21,7 @@ class ConsumetRepositoryImpl @Inject constructor(
     override fun searchAndGetVoiceovers(query: String): Flow<NetworkResult<List<VoiceoverOption>>> = flow {
         emit(NetworkResult.Loading)
         try {
+            android.util.Log.d("ConsumetRepo", "searchAndGetVoiceovers: query='$query'")
             val response = api.searchGogoanime(query)
             val options = response.results.map { item ->
                 val isDub = item.subOrDub?.contains("dub", ignoreCase = true) == true || item.id.endsWith("-dub")
@@ -32,8 +33,10 @@ class ConsumetRepositoryImpl @Inject constructor(
                     link = item.id
                 )
             }
+            android.util.Log.d("ConsumetRepo", "Parsed ${options.size} voiceovers from Consumet")
             emit(NetworkResult.Success(options))
         } catch (e: Exception) {
+            android.util.Log.e("ConsumetRepo", "searchAndGetVoiceovers failed: ${e.message}", e)
             emit(NetworkResult.Error(e.message ?: "Ошибка поиска Consumet", e))
         }
     }
@@ -42,6 +45,7 @@ class ConsumetRepositoryImpl @Inject constructor(
         emit(NetworkResult.Loading)
         try {
             val cleanId = animeId.removePrefix("consumet_")
+            android.util.Log.d("ConsumetRepo", "getEpisodes: animeId='$animeId' (clean='$cleanId')")
             val info = api.getGogoanimeInfo(cleanId)
             val episodes = info.episodes.map { ep ->
                 val epOrdinal = ep.number
@@ -59,8 +63,10 @@ class ConsumetRepositoryImpl @Inject constructor(
                     ending = null
                 )
             }
+            android.util.Log.d("ConsumetRepo", "Parsed ${episodes.size} episodes from Consumet")
             emit(NetworkResult.Success(episodes))
         } catch (e: Exception) {
+            android.util.Log.e("ConsumetRepo", "getEpisodes failed: ${e.message}", e)
             emit(NetworkResult.Error(e.message ?: "Ошибка получения серий Consumet", e))
         }
     }

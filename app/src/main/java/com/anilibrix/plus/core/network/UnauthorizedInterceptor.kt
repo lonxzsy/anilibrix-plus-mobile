@@ -36,7 +36,8 @@ class UnauthorizedInterceptor @Inject constructor(
         val request = chain.request()
         val response = chain.proceed(request)
 
-        if (response.code == 401 && !request.url.encodedPath.contains(LOGIN_PATH)) {
+        val isAnilibriaHost = request.url.host.contains("anilib", ignoreCase = true)
+        if (isAnilibriaHost && response.code == 401 && !request.url.encodedPath.contains(LOGIN_PATH)) {
             // Запись в DataStore — suspend, а мы на потоке OkHttp; уводим в
             // applicationScope, чтобы не блокировать сетевой поток.
             applicationScope.launch {

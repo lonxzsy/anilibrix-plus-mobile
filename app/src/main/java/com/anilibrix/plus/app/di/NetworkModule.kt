@@ -233,7 +233,7 @@ object NetworkModule {
     @KodikApi
     fun provideKodikRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://kodikapi.com/")
+            .baseUrl("https://kodik-api.com/")
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

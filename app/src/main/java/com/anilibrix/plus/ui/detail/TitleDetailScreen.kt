@@ -347,4 +347,28 @@ fun TitleDetailScreen(
             onDismiss = { viewModel.onIntent(DetailIntent.DismissVoiceoverSheet) }
         )
     }
+
+    // Диалог скачивания торрента
+    state.selectedTorrentForDownload?.let { torrent ->
+        com.anilibrix.plus.ui.detail.components.TorrentDownloadDialog(
+            torrent = torrent,
+            metadata = state.torrentResolvedMetadata,
+            isLoading = state.torrentMetadataLoading,
+            onDismiss = { viewModel.onIntent(DetailIntent.DismissTorrentDialog) },
+            onStartDownload = { tor, selectedIndices ->
+                viewModel.onIntent(DetailIntent.StartTorrentDownload(tor, selectedIndices))
+                toastHostState?.showSuccess("Загрузка торрента началась")
+            },
+            onOpenMagnet = { magnet ->
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(magnet)
+                    ).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                )
+            }
+        )
+    }
 }

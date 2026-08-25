@@ -650,11 +650,11 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(vertical = Spacing.sm)) {
                         SettingsItem(
                             icon = Icons.Rounded.Download,
-                            title = "Скачанные серии",
+                            title = "Загрузки и торренты",
                             supportingText = if (state.downloadsUsedBytes > 0) {
                                 "Занято ${formatBytes(state.downloadsUsedBytes)}"
                             } else {
-                                "Ничего не скачано"
+                                "Серии и торрент-раздачи"
                             },
                             onClick = onNavigateToDownloads,
                             trailing = {

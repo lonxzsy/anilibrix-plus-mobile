@@ -31,6 +31,8 @@ class PlayerViewModel @Inject constructor(
     private val syncScheduler: SyncScheduler,
     private val aniSkipRepository: com.anilibrix.plus.domain.repository.AniSkipRepository,
     private val kodikRepository: com.anilibrix.plus.domain.repository.KodikRepository,
+    private val consumetRepository: com.anilibrix.plus.domain.repository.ConsumetRepository,
+    private val downloadDao: com.anilibrix.plus.core.database.dao.DownloadDao,
     /**
      * Сохранение прогресса живёт дольше экрана: запись в базу не должна
      * отменяться от того, что пользователь вышел из плеера — именно в этот
@@ -121,12 +123,14 @@ class PlayerViewModel @Inject constructor(
             // Автоматическое получение таймкодов опенингов из AniSkip, если у серии их нет
             if (episode.opening == null && episode.ending == null) {
                 if (settingsDataStore.aniskipEnabled.first()) {
+                    android.util.Log.d("PlayerVM", "Requesting AniSkip for titleId=$titleId, ordinal=${episode.ordinal}")
                     val (op, ed) = aniSkipRepository.getSkipIntervals(
                         malId = titleId,
                         episodeNumber = episode.ordinal,
                         episodeLengthSeconds = episode.duration.toDouble()
                     )
                     if (op != null || ed != null) {
+                        android.util.Log.d("PlayerVM", "AniSkip intervals applied: op=$op, ed=$ed")
                         updateState {
                             copy(currentEpisode = currentEpisode?.copy(opening = op, ending = ed))
                         }
@@ -140,6 +144,7 @@ class PlayerViewModel @Inject constructor(
 
     fun loadEpisode(titleAlias: String, episodeId: Long) {
         viewModelScope.launch {
+            android.util.Log.d("PlayerVM", "loadEpisode: alias='$titleAlias', episodeId=$episodeId")
             updateState {
                 copy(
                     isLoading = true,
@@ -155,25 +160,46 @@ class PlayerViewModel @Inject constructor(
                             val episodes = release.episodes ?: emptyList()
                             val episode = episodes.find { it.id == episodeId }
                             if (episode != null) {
+                                android.util.Log.d("PlayerVM", "Found AniLibria episode: id=${episode.id}, name=${episode.name}")
                                 updateState { copy(allEpisodes = episodes) }
                                 initialize(episode, release.name.main, release.id, release.poster?.fullUrl)
                             } else {
-                                // Попытка найти стороннюю серию (Kodik)
+                                val savedVoiceoverId = settingsDataStore.getTitleVoiceover(release.id).first()
+                                android.util.Log.d("PlayerVM", "Searching external episodes for episodeId=$episodeId, savedVoiceover=$savedVoiceoverId, malId=${release.malId}...")
+
+                                val translationId = savedVoiceoverId?.removePrefix("kodik_")?.toLongOrNull()
+
+                                if (savedVoiceoverId?.startsWith("consumet_") == true) {
+                                    val consumetAnimeId = savedVoiceoverId.removePrefix("consumet_")
+                                    consumetRepository.getEpisodes(consumetAnimeId).collect { cResult ->
+                                        if (cResult is NetworkResult.Success && cResult.data.isNotEmpty()) {
+                                            val cEp = cResult.data.find { it.id == episodeId } ?: cResult.data.firstOrNull()
+                                            if (cEp != null) {
+                                                updateState { copy(allEpisodes = cResult.data) }
+                                                initialize(cEp, release.name.main, release.id, release.poster?.fullUrl)
+                                                return@collect
+                                            }
+                                        }
+                                    }
+                                }
+
                                 kodikRepository.getEpisodes(
                                     shikimoriId = null,
                                     malId = release.malId?.toLong(),
-                                    translationId = null,
+                                    translationId = translationId,
                                     kodikId = null
                                 ).collect { kodikResult ->
                                     if (kodikResult is NetworkResult.Success && kodikResult.data.isNotEmpty()) {
                                         val kEp = kodikResult.data.find { it.id == episodeId }
                                             ?: kodikResult.data.firstOrNull()
                                         if (kEp != null) {
+                                            android.util.Log.d("PlayerVM", "Found Kodik episode: id=${kEp.id}, name=${kEp.name}")
                                             updateState { copy(allEpisodes = kodikResult.data) }
                                             initialize(kEp, release.name.main, release.id, release.poster?.fullUrl)
                                             return@collect
                                         }
                                     }
+                                    android.util.Log.w("PlayerVM", "Episode id=$episodeId not found in Kodik either")
                                     updateState {
                                         copy(
                                             isLoading = false,
