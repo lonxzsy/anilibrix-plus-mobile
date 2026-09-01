@@ -1,190 +1,180 @@
 <div align="center">
 
-# 🎬 AnilibrixPlus
+# AnilibrixPlus
 
-### *Современный, быстрый и функциональный Android-клиент для просмотра аниме*
+### Native Android client for streaming, torrent management, and catalog browsing
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-7F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Android](https://img.shields.io/badge/Android-13%2B%20(API%2033%2B)-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Media3](https://img.shields.io/badge/Media3-ExoPlayer-E53935.svg?style=for-the-badge&logo=google&logoColor=white)](https://developer.android.com/media/media3)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-7F52FF.svg?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Android](https://img.shields.io/badge/Android-13%2B%20(API%2033%2B)-3DDC84.svg?style=flat-square&logo=android&logoColor=white)](https://developer.android.com)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?style=flat-square&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![Media3](https://img.shields.io/badge/Media3-ExoPlayer-E53935.svg?style=flat-square&logo=google&logoColor=white)](https://developer.android.com/media/media3)
+[![Room](https://img.shields.io/badge/Room-Database%20v6-2E7D32.svg?style=flat-square)](https://developer.android.com/training/data-storage/room)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 <p align="center">
-  <a href="#-ключевые-возможности">Возможности</a> •
-  <a href="#-мультиисточники-и-озвучки">Озвучки и стриминг</a> •
-  <a href="#-встроенный-torrent-сервис">Торрент-движок</a> •
-  <a href="#-архитектура-и-стек">Технологии</a> •
-  <a href="#-установка-и-сборка">Сборка</a>
+  <a href="#features">Features</a> •
+  <a href="#media-streaming--voiceover-sources">Media Sources</a> •
+  <a href="#torrent-engine">Torrent Engine</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#building-from-source">Building</a> •
+  <a href="#api-integrations">APIs</a>
 </p>
 
 </div>
 
 ---
 
-## 🌟 Ключевые возможности
+## Overview
 
-### 🎨 Интерфейс и дизайн нового поколения
-* **Material Design 3 (Material You)** — динамическая палитра, адаптирующаяся под тему и обои устройства, плавная анимация переходов и поддержка тёмной/светлой темы.
-* **Кастомные микроанимации** — карусели релизов, масштабирование карточек при нажатии, тактильная отдача (Haptics) и скелетон-лоадеры.
-* **Каталог и фильтрация** — гибкий поиск по жанрам, сезонам, годам, типам релизов и сортировка по популярности и рейтингам.
-* **Расписание онгоингов** — интерактивное расписание выхода новых серий по дням недели.
+**AnilibrixPlus** is a high-performance, native Android application engineered for browsing anime catalogs, streaming episodes from multiple providers, and managing torrent downloads directly within the app. Built on modern Android architecture principles using Jetpack Compose, Kotlin Coroutines/Flow, Media3 (ExoPlayer), and Clean Architecture.
 
 ---
 
-### 🎙 Мультиисточники и выбор озвучки
-* **AniLibria** — официальные высококачественные релизы с гибким выбором качества (480p, 720p, 1080p).
-* **Kodik API** — интеграция с огромной базой сторонних студий озвучки (Studio Band, Dream Cast, AniDUB, Jam Club и др.) и русских субтитров.
-* **Consumet API (Gogoanime)** — поддержка зарубежных стримов с английским дубляжом (*EN Dub*) и субтитрами (*EN Sub*).
-* **Умный выбор предпочтительной озвучки**:
-  * Глобальная настройка любимой студии в профиле.
-  * Индивидуальный выбор и сохранение озвучки для каждого отдельного тайтла.
-  * Мгновенное обновление списка серий и онлайн-потоков при смене переводчика.
+## Features
+
+### UI and UX
+- **Material Design 3**: Strict compliance with Material You guidelines, including dynamic theming, smooth transitions, and refined elevation hierarchies.
+- **Catalog Navigation**: Comprehensive search and multi-parameter filtering across genres, release types, seasons, and release years.
+- **Release Schedule**: Weekly calendar tracking ongoing anime simulcasts and release days.
+
+### Media Streaming and Voiceover Routing
+- **Multi-Provider Playback**:
+  - **AniLibria**: Official primary stream source with HLS multi-bitrate delivery (480p, 720p, 1080p).
+  - **Kodik API**: Integrated secondary provider indexing external Russian dubbing studios and localized subtitle tracks.
+  - **Consumet API (Gogoanime)**: International fallback and stream provider for English Dub and Subtitle releases.
+- **Voiceover Preferences**:
+  - Global preference fallback configurable in application settings.
+  - Granular per-title voiceover selection persisted in local database.
+  - Dynamic stream resolution and episode list updates upon switching providers.
+
+### Torrent Engine and Offline Storage
+- **Native Torrent Service**: Standalone in-app background download manager implemented via `ForegroundService` with notification channel progress tracking.
+- **Smart Release Parser (`TorrentNameParser`)**:
+  - Parses unstructured torrent naming schemas from **Nyaa.si** and **AniLibria**.
+  - Extracts release groups (e.g., *SubsPlease*, *Erai-raws*, *Judas*, *EMBER*, *AniLibria*), video codecs (*HEVC x265 10-bit*, *AV1*, *x264*), resolutions (*1080p*, *720p*, *4K*), and audio configurations (*Dual-Audio*, *Multi-Sub*).
+- **Filtering & Episode Range Selection**:
+  - In-memory real-time keyword search.
+  - Horizontal episode chips enabling one-touch filtering for specific episodes or full season batch packs.
+  - BEncode metadata inspection for selective episode file extraction.
+
+### Video Player (Media3 / ExoPlayer)
+- **AniSkip Integration**: Automated and interactive skipping for anime openings and endings based on crowd-sourced timestamp APIs.
+- **Audio & Subtitle Management**: Embedded track selection alongside external `.srt` / `.vtt` file parser integration.
+- **Gesture Controls**: Touch-based brightness control, volume adjustment, and double-tap seeking.
+- **Background Playback & PiP**: Full Picture-in-Picture support and `MediaSessionService` system integration with lock screen transport controls.
+
+### Library and Cloud Synchronization
+- **Shikimori**: Full OAuth 2.0 authentication, profile synchronization, status tracking (*Watching*, *Completed*, *Planned*), and rating sync.
+- **MyAnimeList / Jikan**: Secondary metadata lookup for character lists, voice cast, screenshots, and relations.
 
 ---
 
-### ⚡ Встроенный Torrent-сервис и умный парсер
-* **Встроенный загрузчик торрентов** — больше не требуются сторонние приложения (µTorrent/Flud). Вся загрузка происходит прямо внутри приложения в фоновом режиме (`Foreground Service`) с уведомлением в шторке.
-* **Умный парсер релизов (`TorrentNameParser`)**:
-  * Автоматически форматирует «сырые» заголовки с **Nyaa.si** и **AniLibria**.
-  * Распознаёт релиз-группы (*SubsPlease, Erai-raws, Judas, EMBER, AniLibria*), видеокодеки (*HEVC x265 10-bit, AV1, x264*), качество (*1080p, 720p, 4K*) и аудиодорожки (*Dual-Audio, Multi-Sub*).
-* **Фильтрация и поиск по раздачам**:
-  * Быстрый текстовый фильтр по ключевым словам.
-  * Горизонтальная лента чипов выбора серий (*«Все серии»*, *«Пакеты / Сезон»*, *«Сер 1»*, *«Сер 2»*...).
-  * Выборочная загрузка конкретных файлов и воспроизведение офлайн.
+## Architecture
 
----
-
-### 🍿 Продвинутый видеоплеер (Media3 / ExoPlayer)
-* **Пропуск заставок (AniSkip)** — автоматический или полуавтоматический пропуск опенингов и эндингов с настраиваемыми интервалами.
-* **Поддержка субтитров** — поддержка встроенных дорожек и возможность загрузки внешних файлов `.srt` / `.vtt`.
-* **Жестовое управление** — свайпы для регулировки яркости (слева), громкости (справа) и быстрой перемотки двойным тапом.
-* **Режим «Картинка в картинке» (PiP)** и фоновое воспроизведение через `PlaybackService` с интеграцией в экран блокировки и гарнитуру.
-* **Управление воспроизведением**: изменение скорости (от `0.25x` до `3.0x`), эквалайзер и переключение аудиодорожек.
-
----
-
-### 🔄 Синхронизация и библиотека
-* **Shikimori** — полная авторизация по OAuth 2.0, синхронизация списков просмотра, рейтингов и персональных отметок.
-* **MyAnimeList (Jikan API)** — подробная информация о персонажах, сейю, кадрах из серий и рейтингах.
-* **Локальная история и кэш** — сохранение прогресса с точностью до секунды и бесшовное продолжение просмотра.
-
----
-
-## 🛠 Архитектура и стек технологий
-
-Проект разработан в соответствии с принципами **Clean Architecture** и однонаправленным потоком данных (**MVI / MVVM**):
+The project adheres to Clean Architecture layers and the MVI (Model-View-Intent) pattern with unidirectional data flow (UDF):
 
 ```
-app/
-├── src/main/java/com/anilibrix/plus/
-│   ├── app/                      # Application класс, Hilt модули Dependency Injection
-│   ├── core/                     # Базовые модули и системные сервисы
-│   │   ├── database/             # Room Database v6 (Entity, DAO, Миграции)
-│   │   ├── datastore/            # DataStore Preferences (Настройки, токены)
-│   │   ├── download/             # Менеджер Media3 загрузок
-│   │   ├── network/              # OkHttp перехватчики (Auth, Logging)
-│   │   ├── notifications/        # Каналы уведомлений Android
-│   │   ├── playback/             # MediaSessionService фонового плеера
-│   │   ├── torrent/              # Torrent движок, BEncode, метаданные, парсер имен
-│   │   └── sync/                 # Фоновая синхронизация (WorkManager)
-│   ├── data/                     # Слой данных (Data Layer)
-│   │   ├── remote/api/           # Retrofit интерфейсы (AniLibria, Kodik, Consumet, Shikimori, Jikan)
-│   │   ├── remote/dto/           # Сериализуемые DTO модели (Kotlinx.Serialization)
-│   │   └── repository/           # Реализации репозиториев
-│   ├── domain/                   # Доменный слой (Domain Layer)
-│   │   ├── model/                # Чистые доменные сущности
-│   │   └── repository/           # Интерфейсы доступа к данным
-│   └── ui/                       # Слой представления (Presentation Layer - Jetpack Compose)
-│       ├── components/           # Переиспользуемые дизайн-компоненты
-│       ├── detail/               # Экран деталей тайтла (Эпизоды, торренты, озвучки)
-│       ├── downloads/            # Менеджер загрузок и торрент-задач
-│       ├── player/               # Полноэкранный плеер с жестами и контролами
-│       ├── profile/              # Профиль, настройки API и синхронизация
-│       ├── theme/                # Цветовые схемы, типографика, формы, отступы
-│       └── navigation/           # Навигационный граф и переходы
+app/src/main/java/com/anilibrix/plus/
+├── app/
+│   ├── di/                       # Dagger-Hilt Dependency Injection modules
+│   └── MainActivity.kt           # Single-activity container
+├── core/
+│   ├── database/                 # Room DB v6 (Entities, DAOs, Migrations)
+│   ├── datastore/                # DataStore Preferences (Settings, Token storage)
+│   ├── download/                 # Media3 DownloadManager integration
+│   ├── network/                  # OkHttp interceptors (Auth, Logging, Error handling)
+│   ├── notifications/            # Notification channel management
+│   ├── playback/                 # MediaSessionService implementation
+│   ├── torrent/                  # Torrent engine, BEncode parser, TorrentNameParser
+│   └── sync/                     # WorkManager background sync workers
+├── data/
+│   ├── remote/api/               # Retrofit API definitions (AniLibria, Kodik, Consumet, Shikimori, Jikan)
+│   ├── remote/dto/               # Kotlinx.Serialization Data Transfer Objects
+│   └── repository/               # Concrete repository implementations
+├── domain/
+│   ├── model/                    # Pure domain models
+│   └── repository/               # Domain repository interfaces
+└── ui/
+    ├── components/               # Reusable UI primitives
+    ├── detail/                   # Title details, episode list, torrents tab
+    ├── downloads/                # Download manager and active torrent queue
+    ├── player/                   # Video player screen and controllers
+    ├── profile/                  # User profile and application settings
+    ├── theme/                    # Color schemes, typography, spacing, shapes
+    └── navigation/               # NavHost and route transition specs
 ```
 
-### Основные библиотеки:
-| Категория | Библиотека | Назначение |
+### Technical Stack
+
+| Component | Library / Framework | Purpose |
 |---|---|---|
-| **UI & UX** | Jetpack Compose / Material 3 | Декларативный UI с поддержкой Material You |
-| **DI** | Dagger Hilt 2.51+ | Внедрение зависимостей |
-| **Асинхронность** | Coroutines & StateFlow | Реактивное управление состоянием |
-| **Сеть** | Retrofit 2 / OkHttp 3 | REST API клиенты |
-| **Сериализация** | Kotlinx Serialization | Высокопроизводительный JSON парсинг |
-| **База данных** | Room 2.6+ | Локальная БД для истории, кэша и торрентов |
-| **Настройки** | Jetpack DataStore | Хранение пользовательских настроек |
-| **Мультимедиа** | AndroidX Media3 (ExoPlayer) | Воспроизведение видео, HLS потоков и кэширование |
-| **Изображения** | Landscapist Glide | Кэширование и crossfade-загрузка постеров |
-| **Фоновые задачи** | AndroidX WorkManager | Фоновая синхронизация списков |
+| **Language** | Kotlin 2.0+ | Modern type-safe programming language |
+| **UI Framework** | Jetpack Compose / Material 3 | Declarative UI layer with Material You support |
+| **Dependency Injection** | Dagger Hilt 2.51+ | Compile-time dependency injection |
+| **Concurrency** | Kotlin Coroutines & Flow | Reactive asynchronous operations and state management |
+| **Networking** | Retrofit 2 & OkHttp 3 | REST API client and network layer |
+| **Serialization** | Kotlinx Serialization | Type-safe JSON serialization/deserialization |
+| **Local Database** | Room 2.6+ (Schema v6) | Offline storage for cache, history, and torrent metadata |
+| **Preferences** | Jetpack DataStore | DataStore Preferences for reactive settings storage |
+| **Media Player** | AndroidX Media3 (ExoPlayer) | Media playback, HLS streaming, caching, and background playback |
+| **Image Loading** | Landscapist Glide | Memory-efficient image pipeline with crossfade caching |
+| **Background Tasks** | AndroidX WorkManager | Persistent background synchronization |
 
 ---
 
-## 🚀 Установка и сборка
+## Building from Source
 
-### Системные требования:
-* **Android OS:** Android 13.0 (API 33) или новее.
-* **JDK:** OpenJDK 21 (с поддержкой `jlink`).
-* **Android Studio:** Ladybug / Koala или свежее.
+### Prerequisites
+- **Android SDK**: API 35 (Android 15)
+- **Minimum Supported OS**: Android 13.0 (API 33)
+- **JDK**: OpenJDK 21 (with `jlink` utility available)
+- **Gradle**: 8.9+ / Android Gradle Plugin 8.7+
 
-### Клонирование и локальная сборка:
+### Build Instructions
 
-1. **Клонируйте репозиторий:**
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/lonxzsy/anilibrix-plus-mobile.git
    cd anilibrix-plus-mobile
    ```
 
-2. **Сборка Debug APK:**
+2. **Assemble Debug APK:**
    ```bash
    ./gradlew assembleDebug
    ```
-   *Готовый файл будет расположен по адресу:*  
+   The generated artifact will be located at:
    `app/build/outputs/apk/debug/app-debug.apk`
 
-3. **Сборка Release APK:**
+3. **Assemble Release APK:**
    ```bash
    ./gradlew assembleRelease
    ```
 
-4. **Запуск Unit-тестов:**
+4. **Run Unit Tests:**
    ```bash
    ./gradlew test
    ```
 
 ---
 
-## 📡 Поддерживаемые API
+## API Integrations
 
-* 🌸 **[AniLibria API v3](https://anilibria.tv)** — официальный каталог, эпизоды и HLS потоки.
-* 🎬 **[Kodik API](https://kodik.biz)** — мультиязычные студии озвучки и субтитры.
-* 🌍 **[Consumet API](https://consumet.org)** — международные источники аниме (Gogoanime).
-* 📜 **[Shikimori API](https://shikimori.one)** — синхронизация пользовательских списков и OAuth.
-* 🌐 **[Jikan / MyAnimeList](https://jikan.moe)** — метаданные, постеры, кадры и персонал.
-* ⏱ **[AniSkip API](https://anime-skip.com)** — таймкоды опенингов и эндингов.
-* 🧲 **[Nyaa.si](https://nyaa.si)** — каталог торрент-раздач в высоком качестве.
-
----
-
-## 🤝 Вклад в разработку (Contributing)
-
-Мы приветствуем любые улучшения, предложения и исправления!
-
-1. Сделайте **Fork** проекта.
-2. Создайте свою ветку фичи: `git checkout -b feature/my-new-feature`
-3. Зафиксируйте изменения: `git commit -m 'Add awesome feature'`
-4. Отправьте ветку в свой репозиторий: `git push origin feature/my-new-feature`
-5. Создайте **Pull Request**.
+- **AniLibria API v3**: Primary catalog indexing, episode metadata, and HLS streaming endpoints.
+- **Kodik API**: Multi-studio Russian voiceover tracks, subtitles, and video stream metadata.
+- **Consumet API**: International English Dub and Sub anime streams via Gogoanime provider.
+- **Shikimori API v2**: User authentication, list tracking, and progress synchronization.
+- **Jikan API (Unofficial MyAnimeList)**: Extended title metadata, character profiles, voice actors, and screenshots.
+- **AniSkip API**: Timestamp resolution for opening and ending sequences.
+- **Nyaa.si**: Torrent index querying and metadata fetching.
 
 ---
 
-## 📄 Лицензия
+## License
 
-Проект распространяется под лицензией **MIT**. Подробности в файле [LICENSE](LICENSE).
+This project is licensed under the terms of the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 ---
 
 <div align="center">
-  <sub>Разработано с ❤️ для аниме-сообщества. Приложение является неофициальным клиентом.</sub>
+  <sub>Disclaimer: AnilibrixPlus is an independent, non-commercial client application and is not officially affiliated with AniLibria.</sub>
 </div>
