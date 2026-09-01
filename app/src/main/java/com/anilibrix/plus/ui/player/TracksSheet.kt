@@ -59,6 +59,9 @@ fun TracksSheet(
     speeds: List<TrackOption>,
     selectedSpeed: String,
     onSpeedSelected: (String) -> Unit,
+    audioTracks: List<TrackOption> = emptyList(),
+    selectedAudioTrack: String? = null,
+    onAudioTrackSelected: (String) -> Unit = {},
     subtitleTracks: List<TrackOption>,
     selectedSubtitle: String?,
     onSubtitleSelected: (String?) -> Unit,
@@ -86,6 +89,23 @@ fun TracksSheet(
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+
+        if (audioTracks.isNotEmpty()) {
+            SheetSection(
+                title = "Аудиодорожка (озвучка)",
+                icon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, modifier = Modifier.size(Sizing.iconMd)) },
+            )
+            OptionGroup(
+                options = audioTracks,
+                selectedId = selectedAudioTrack,
+                onSelect = {
+                    haptics.tick()
+                    onAudioTrackSelected(it)
+                },
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+        }
 
         SheetSection(
             title = "Скорость",

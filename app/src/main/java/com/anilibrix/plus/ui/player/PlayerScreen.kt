@@ -119,12 +119,27 @@ fun PlayerScreen(
     LaunchedEffect(state.quality, state.currentEpisode, state.retryNonce, player) {
         val activePlayer = player ?: return@LaunchedEffect
         val episode = state.currentEpisode ?: return@LaunchedEffect
-        val url = when (state.quality) {
+        val selectedUrl = when (state.quality) {
             "480" -> episode.hls480
             "720" -> episode.hls720
             "1080" -> episode.hls1080
             else -> episode.hls720 ?: episode.hls480 ?: episode.hls1080
         } ?: episode.hls720 ?: episode.hls480 ?: episode.hls1080
+
+        var url = selectedUrl
+        if (url?.startsWith("file://") == true) {
+            val localPath = url.removePrefix("file://")
+            val localFile = java.io.File(localPath)
+            if (!localFile.exists() || localFile.length() < 1024L) {
+                // Если локальный файл пуст или недоступен, пробуем онлайн-источник этой серии
+                val fallbackOnline = episode.hls1080?.takeIf { !it.startsWith("file://") }
+                    ?: episode.hls720?.takeIf { !it.startsWith("file://") }
+                    ?: episode.hls480?.takeIf { !it.startsWith("file://") }
+                if (fallbackOnline != null) {
+                    url = fallbackOnline
+                }
+            }
+        }
 
         if (url.isNullOrBlank()) {
             viewModel.handleIntent(PlayerIntent.ShowPlaybackError("Для этой серии нет доступного видео"))
@@ -204,6 +219,27 @@ fun PlayerScreen(
             .build()
     }
 
+    // Выбор аудиодорожки (озвучки) в плеере
+    LaunchedEffect(state.selectedAudioTrackId, player) {
+        val activePlayer = player ?: return@LaunchedEffect
+        val selected = state.selectedAudioTrackId ?: return@LaunchedEffect
+        val groupIndex = selected.substringBefore(':').toIntOrNull()
+        val trackIndex = selected.substringAfter(':').toIntOrNull()
+        val groups = activePlayer.currentTracks.groups
+            .filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+        if (groupIndex != null && trackIndex != null && groupIndex in groups.indices) {
+            activePlayer.trackSelectionParameters = activePlayer.trackSelectionParameters
+                .buildUpon()
+                .setOverrideForType(
+                    androidx.media3.common.TrackSelectionOverride(
+                        groups[groupIndex].mediaTrackGroup,
+                        trackIndex,
+                    )
+                )
+                .build()
+        }
+    }
+
     DisposableEffect(player) {
         val activePlayer = player ?: return@DisposableEffect onDispose { }
         val listener = object : Player.Listener {
@@ -251,6 +287,30 @@ fun PlayerScreen(
                         }
                     }
                 viewModel.handleIntent(PlayerIntent.SetSubtitleTracks(textTracks))
+
+                val audioTracks = tracks.groups
+                    .filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+                    .flatMapIndexed { groupIndex: Int, group: androidx.media3.common.Tracks.Group ->
+                        (0 until group.length).map { i ->
+                            val format = group.getTrackFormat(i)
+                            val lang = format.language?.uppercase()
+                            val label = format.label
+                                ?: if (!lang.isNullOrBlank()) "Аудио ($lang)" else "Дорожка ${groupIndex + 1}"
+                            val details = buildString {
+                                if (format.channelCount > 0) append("${format.channelCount}.0 ")
+                                if (!format.sampleMimeType.isNullOrBlank()) append(format.sampleMimeType?.substringAfter('/')?.uppercase())
+                            }.trim().takeIf { it.isNotBlank() }
+
+                            PlayerAudioTrack(
+                                id = "${groupIndex}:${i}",
+                                label = label,
+                                language = format.language,
+                                isSelected = group.isTrackSelected(i),
+                                supporting = details
+                            )
+                        }
+                    }
+                viewModel.handleIntent(PlayerIntent.SetAudioTracks(audioTracks))
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -524,6 +584,11 @@ fun PlayerScreen(
             onSpeedSelected = { value ->
                 value.toFloatOrNull()?.let { viewModel.handleIntent(PlayerIntent.SetSpeed(it)) }
             },
+            audioTracks = state.audioTracks.map { track ->
+                TrackOption(id = track.id, label = track.label, supporting = track.supporting ?: track.language)
+            },
+            selectedAudioTrack = state.selectedAudioTrackId,
+            onAudioTrackSelected = { viewModel.handleIntent(PlayerIntent.SelectAudioTrack(it)) },
             subtitleTracks = state.subtitleTracks.map { track ->
                 TrackOption(id = track.id, label = track.label, supporting = track.language)
             },

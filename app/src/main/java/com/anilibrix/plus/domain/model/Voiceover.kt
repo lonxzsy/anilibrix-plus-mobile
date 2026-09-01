@@ -10,7 +10,8 @@ enum class VoiceoverProvider(val displayName: String) {
     KODIK("Kodik"),
     CONSUMET("Consumet"),
     ANIFY("Anify"),
-    DECODER("Studio")
+    DECODER("Studio"),
+    TORRENT("Торрент / Локальный")
 }
 
 /**

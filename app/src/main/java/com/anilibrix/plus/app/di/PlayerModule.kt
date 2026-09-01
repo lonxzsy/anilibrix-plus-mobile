@@ -99,13 +99,15 @@ object PlayerModule {
     @Provides
     @Singleton
     fun provideCacheDataSourceFactory(
+        @ApplicationContext context: Context,
         @StreamingCache streamingCache: SimpleCache,
         @DownloadCache downloadCache: SimpleCache,
         httpFactory: DefaultHttpDataSource.Factory,
     ): CacheDataSource.Factory {
+        val upstreamFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, httpFactory)
         val streamingLayer = CacheDataSource.Factory()
             .setCache(streamingCache)
-            .setUpstreamDataSourceFactory(httpFactory)
+            .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         return CacheDataSource.Factory()

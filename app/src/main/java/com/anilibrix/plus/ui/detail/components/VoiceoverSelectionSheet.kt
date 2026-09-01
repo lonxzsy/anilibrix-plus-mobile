@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Subtitles
@@ -66,6 +67,7 @@ fun VoiceoverSelectionSheet(
     }
 
     val primaryOptions = filteredList.filter { it.provider == VoiceoverProvider.ANILIBRIA }
+    val torrentOptions = filteredList.filter { it.provider == VoiceoverProvider.TORRENT }
     val ruVoiceOptions = filteredList.filter { it.provider == VoiceoverProvider.KODIK && it.type == VoiceoverType.VOICE }
     val subOptions = filteredList.filter { it.type == VoiceoverType.SUBTITLES && it.provider != VoiceoverProvider.CONSUMET && it.provider != VoiceoverProvider.ANIFY }
     val foreignOptions = filteredList.filter { it.provider == VoiceoverProvider.CONSUMET || it.provider == VoiceoverProvider.ANIFY }
@@ -126,6 +128,22 @@ fun VoiceoverSelectionSheet(
                         VoiceoverOptionItem(
                             option = option,
                             isSelected = selectedVoiceover?.id == option.id || (selectedVoiceover == null && option.isDefault),
+                            onClick = {
+                                onSelectVoiceover(option, rememberForTitle)
+                                onDismiss()
+                            }
+                        )
+                    }
+                }
+
+                if (torrentOptions.isNotEmpty()) {
+                    item {
+                        VoiceoverGroupHeader(title = "Скачанные раздачи / Локальные")
+                    }
+                    items(torrentOptions, key = { it.id }) { option ->
+                        VoiceoverOptionItem(
+                            option = option,
+                            isSelected = selectedVoiceover?.id == option.id,
                             onClick = {
                                 onSelectVoiceover(option, rememberForTitle)
                                 onDismiss()
@@ -252,8 +270,9 @@ private fun VoiceoverOptionItem(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = when (option.type) {
-                            VoiceoverType.SUBTITLES -> Icons.Rounded.Subtitles
+                        imageVector = when {
+                            option.provider == VoiceoverProvider.TORRENT -> Icons.Rounded.Download
+                            option.type == VoiceoverType.SUBTITLES -> Icons.Rounded.Subtitles
                             else -> Icons.Rounded.Mic
                         },
                         contentDescription = null,

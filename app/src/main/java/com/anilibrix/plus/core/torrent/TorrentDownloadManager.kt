@@ -271,8 +271,8 @@ class TorrentDownloadManager @Inject constructor(
     private suspend fun registerCompletedDownloads(task: TorrentTaskInfo) {
         // Создаем записи в таблице downloads для офлайн-плеера
         val selectedFiles = task.files.filter { it.selected }
-        for (file in selectedFiles) {
-            val epNum = file.episodeNumber ?: 1
+        for ((idx, file) in selectedFiles.withIndex()) {
+            val epNum = file.episodeNumber ?: (idx + 1)
             val reqId = "torrent:${task.titleId}:${file.index}"
             downloadDao.insert(
                 DownloadEntity(
@@ -280,7 +280,8 @@ class TorrentDownloadManager @Inject constructor(
                     titleId = task.titleId,
                     titleName = task.titleName,
                     posterUrl = task.posterUrl,
-                    episodeId = file.index.toLong(),
+                    episodeId = task.titleId * 100000L + epNum,
+                    releaseEpisodeId = "torrent_${task.id}_${file.index}",
                     episodeNumber = epNum,
                     episodeName = file.name,
                     quality = task.quality ?: "1080p",

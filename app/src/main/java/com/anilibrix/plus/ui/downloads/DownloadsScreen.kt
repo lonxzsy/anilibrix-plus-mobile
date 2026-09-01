@@ -413,7 +413,9 @@ private fun TorrentTaskCard(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         task.files.forEach { file ->
-                            TorrentFileRow(file = file, onPlay = { onPlay(file.index.toLong()) })
+                            val epNum = file.episodeNumber ?: (file.index + 1)
+                            val epId = task.titleId * 100000L + epNum
+                            TorrentFileRow(file = file, onPlay = { onPlay(epId) })
                         }
                     }
                 }

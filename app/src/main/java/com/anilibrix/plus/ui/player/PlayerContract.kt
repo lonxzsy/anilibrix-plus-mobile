@@ -60,6 +60,9 @@ data class PlayerUiState(
      */
     val subtitleTracks: List<PlayerSubtitleTrack> = emptyList(),
     val selectedSubtitleTrackId: String? = null,
+    /** Аудиодорожки, найденные в потоке или файле. */
+    val audioTracks: List<PlayerAudioTrack> = emptyList(),
+    val selectedAudioTrackId: String? = null,
     /** Имя загруженного пользователем файла субтитров, если он есть. */
     val externalSubtitleName: String? = null,
     /**
@@ -78,6 +81,15 @@ data class PlayerSubtitleTrack(
     val id: String,
     val label: String,
     val language: String?,
+)
+
+@Immutable
+data class PlayerAudioTrack(
+    val id: String,
+    val label: String,
+    val language: String? = null,
+    val isSelected: Boolean = false,
+    val supporting: String? = null,
 )
 
 @Immutable
@@ -160,6 +172,8 @@ sealed class PlayerIntent {
     data object DismissTracksSheet : PlayerIntent()
     data class SetSubtitleTracks(val tracks: List<PlayerSubtitleTrack>) : PlayerIntent()
     data class SelectSubtitleTrack(val trackId: String?) : PlayerIntent()
+    data class SetAudioTracks(val tracks: List<PlayerAudioTrack>) : PlayerIntent()
+    data class SelectAudioTrack(val trackId: String?) : PlayerIntent()
     data class LoadExternalSubtitles(val name: String, val cues: List<SubtitleCue>) : PlayerIntent()
     data class SetBrightness(val brightness: Float) : PlayerIntent()
     data object ToggleTouchLock : PlayerIntent()

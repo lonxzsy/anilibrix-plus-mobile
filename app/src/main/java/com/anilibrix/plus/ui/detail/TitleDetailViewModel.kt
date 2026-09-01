@@ -69,6 +69,13 @@ class TitleDetailViewModel @Inject constructor(
                 if (currentTitleId != null) {
                     val matching = allTasks.filter { it.titleId == currentTitleId }
                     _state.update { it.copy(activeTorrentTasks = matching) }
+                    val torrentOptions = getTorrentVoiceoverOptions(currentTitleId, matching)
+                    if (torrentOptions.isNotEmpty()) {
+                        _state.update { state ->
+                            val combined = (state.availableVoiceovers + torrentOptions).distinctBy { it.id }
+                            state.copy(availableVoiceovers = combined)
+                        }
+                    }
                 }
             }
         }
@@ -832,6 +839,30 @@ class TitleDetailViewModel @Inject constructor(
         }
     }
 
+    private fun getTorrentVoiceoverOptions(
+        titleId: Long,
+        tasks: List<com.anilibrix.plus.core.torrent.TorrentTaskInfo> = _state.value.activeTorrentTasks
+    ): List<com.anilibrix.plus.domain.model.VoiceoverOption> {
+        val completed = tasks.filter { it.titleId == titleId && it.state == com.anilibrix.plus.core.torrent.TorrentDownloadState.COMPLETED }
+        return completed.map { task ->
+            val cleanName = if (!task.releaseGroup.isNullOrBlank()) {
+                "Торрент: ${task.releaseGroup} (${task.quality ?: "1080p"})"
+            } else {
+                "Торрент: ${task.torrentName.take(30)}"
+            }
+            com.anilibrix.plus.domain.model.VoiceoverOption(
+                id = "torrent_${task.id}",
+                name = cleanName,
+                provider = com.anilibrix.plus.domain.model.VoiceoverProvider.TORRENT,
+                type = if (task.torrentName.contains("sub", ignoreCase = true)) com.anilibrix.plus.domain.model.VoiceoverType.SUBTITLES else com.anilibrix.plus.domain.model.VoiceoverType.VOICE,
+                episodesCount = task.files.filter { it.selected }.size,
+                isDefault = false,
+                quality = task.quality ?: "1080p",
+                link = task.saveDirectory
+            )
+        }
+    }
+
     private fun loadVoiceovers(title: Title, shikimoriId: Int?, malId: Long?) {
         viewModelScope.launch {
             _state.update { it.copy(isVoiceoverLoading = true) }
@@ -843,7 +874,8 @@ class TitleDetailViewModel @Inject constructor(
                 episodesCount = title.episodes?.size,
                 isDefault = true
             )
-            val initialList = listOf(anilibriaOption)
+            val torrentOptions = getTorrentVoiceoverOptions(title.id)
+            val initialList = (listOf(anilibriaOption) + torrentOptions).distinctBy { it.id }
             _state.update {
                 it.copy(
                     availableVoiceovers = initialList,
@@ -863,7 +895,8 @@ class TitleDetailViewModel @Inject constructor(
                         if (result is NetworkResult.Success) {
                             kodikOptions = result.data
                             addDebug("Kodik returned ${result.data.size} voiceovers/subs")
-                            val combined = (listOf(anilibriaOption) + kodikOptions + consumetOptions).distinctBy { it.id }
+                            val torrentOpts = getTorrentVoiceoverOptions(title.id)
+                            val combined = (listOf(anilibriaOption) + torrentOpts + kodikOptions + consumetOptions).distinctBy { it.id }
                             _state.update { it.copy(availableVoiceovers = combined) }
                             applyPreferredVoiceover(title, combined)
                         }
@@ -878,7 +911,8 @@ class TitleDetailViewModel @Inject constructor(
                         if (result is NetworkResult.Success) {
                             consumetOptions = result.data
                             addDebug("Consumet returned ${result.data.size} streams")
-                            val combined = (listOf(anilibriaOption) + kodikOptions + consumetOptions).distinctBy { it.id }
+                            val torrentOpts = getTorrentVoiceoverOptions(title.id)
+                            val combined = (listOf(anilibriaOption) + torrentOpts + kodikOptions + consumetOptions).distinctBy { it.id }
                             _state.update { it.copy(availableVoiceovers = combined) }
                             applyPreferredVoiceover(title, combined)
                         }
@@ -926,6 +960,37 @@ class TitleDetailViewModel @Inject constructor(
 
             if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.ANILIBRIA) {
                 _state.update { it.copy(voiceoverEpisodes = null, isVoiceoverLoading = false) }
+            } else if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.TORRENT) {
+                _state.update { it.copy(isVoiceoverLoading = false) }
+                val taskId = option.id.removePrefix("torrent_")
+                val task = _state.value.activeTorrentTasks.find { it.id == taskId }
+                    ?: torrentDownloadManager.activeTasks.value.find { it.id == taskId }
+                if (task != null) {
+                    val selectedFiles = task.files.filter { it.selected }
+                    val episodes = selectedFiles.mapIndexed { idx, file ->
+                        val epNum = file.episodeNumber ?: (idx + 1)
+                        val filePath = if (file.path.isNotBlank()) {
+                            java.io.File(task.saveDirectory, file.path).absolutePath
+                        } else {
+                            java.io.File(task.saveDirectory, file.name).absolutePath
+                        }
+                        val fileUri = "file://$filePath"
+                        Episode(
+                            id = title.id * 100000L + epNum,
+                            releaseEpisodeId = "torrent_${task.id}_${file.index}",
+                            name = if (file.episodeNumber != null) "Серия ${file.episodeNumber}" else file.name,
+                            ordinal = epNum,
+                            duration = 24 * 60,
+                            hls480 = fileUri,
+                            hls720 = fileUri,
+                            hls1080 = fileUri,
+                            opening = null,
+                            ending = null
+                        )
+                    }.sortedBy { it.ordinal }
+                    addDebug("Torrent episodes created: ${episodes.size} episodes")
+                    _state.update { it.copy(voiceoverEpisodes = episodes, isVoiceoverLoading = false) }
+                }
             } else if (option.provider == com.anilibrix.plus.domain.model.VoiceoverProvider.KODIK) {
                 _state.update { it.copy(isVoiceoverLoading = true) }
                 addDebug("Loading Kodik episodes for translationId=${option.translationId}, shikimoriId=${_state.value.shikimoriId}...")

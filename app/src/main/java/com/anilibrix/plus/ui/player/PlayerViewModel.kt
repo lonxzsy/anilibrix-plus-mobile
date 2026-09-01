@@ -33,6 +33,7 @@ class PlayerViewModel @Inject constructor(
     private val kodikRepository: com.anilibrix.plus.domain.repository.KodikRepository,
     private val consumetRepository: com.anilibrix.plus.domain.repository.ConsumetRepository,
     private val downloadDao: com.anilibrix.plus.core.database.dao.DownloadDao,
+    private val torrentDownloadDao: com.anilibrix.plus.core.database.dao.TorrentDownloadDao,
     /**
      * Сохранение прогресса живёт дольше экрана: запись в базу не должна
      * отменяться от того, что пользователь вышел из плеера — именно в этот
@@ -40,6 +41,8 @@ class PlayerViewModel @Inject constructor(
      */
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) : BaseViewModel<PlayerUiState, Unit>() {
+
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     override val initialUiState: PlayerUiState = PlayerUiState()
 
@@ -152,66 +155,181 @@ class PlayerViewModel @Inject constructor(
                     playbackError = null
                 )
             }
+
+            val numericTitleId = titleAlias.toLongOrNull()
+
+            // 1. Попытка загрузить данные тайтла из AniLibria
             anilibriaRepository.getRelease(titleAlias)
                 .collect { result ->
                     when (result) {
                         is NetworkResult.Success -> {
                             val release = result.data
-                            val episodes = release.episodes ?: emptyList()
-                            val episode = episodes.find { it.id == episodeId }
-                            if (episode != null) {
-                                android.util.Log.d("PlayerVM", "Found AniLibria episode: id=${episode.id}, name=${episode.name}")
+                            val episodes = release.episodes.orEmpty()
+                            val savedVoiceoverId = settingsDataStore.getTitleVoiceover(release.id).first()
+
+                            // Проверяем: это запрос на воспроизведение серии AniLibria (по умолчанию)?
+                            val isAniLibriaSelected = savedVoiceoverId.isNullOrBlank() ||
+                                    savedVoiceoverId == "anilibria" ||
+                                    savedVoiceoverId == "anilibria_default"
+
+                            val aniLibriaEp = episodes.find { it.id == episodeId || it.ordinal.toLong() == episodeId }
+
+                            if (isAniLibriaSelected && aniLibriaEp != null) {
+                                android.util.Log.d("PlayerVM", "Playing AniLibria episode: id=${aniLibriaEp.id}, ordinal=${aniLibriaEp.ordinal}")
                                 updateState { copy(allEpisodes = episodes) }
-                                initialize(episode, release.name.main, release.id, release.poster?.fullUrl)
-                            } else {
-                                val savedVoiceoverId = settingsDataStore.getTitleVoiceover(release.id).first()
-                                android.util.Log.d("PlayerVM", "Searching external episodes for episodeId=$episodeId, savedVoiceover=$savedVoiceoverId, malId=${release.malId}...")
+                                initialize(aniLibriaEp, release.name.main, release.id, release.poster?.fullUrl)
+                                return@collect
+                            }
 
-                                val translationId = savedVoiceoverId?.removePrefix("kodik_")?.toLongOrNull()
+                            // 2. Если выбран торрент
+                            if (savedVoiceoverId?.startsWith("torrent_") == true) {
+                                val taskId = savedVoiceoverId.removePrefix("torrent_")
+                                val t = torrentDownloadDao.getById(taskId)
+                                if (t != null) {
+                                    val files = runCatching {
+                                        json.decodeFromString<List<com.anilibrix.plus.core.torrent.TorrentFileItem>>(t.filesJson)
+                                    }.getOrDefault(emptyList())
+                                    val selected = files.filter { it.selected }
+                                    val targetOrdinal = aniLibriaEp?.ordinal?.toLong() ?: episodeId
+                                    val targetFile = selected.find { (it.episodeNumber?.toLong() ?: (it.index + 1L)) == targetOrdinal }
+                                        ?: selected.find { it.index.toLong() == episodeId }
+                                        ?: selected.firstOrNull()
 
-                                if (savedVoiceoverId?.startsWith("consumet_") == true) {
-                                    val consumetAnimeId = savedVoiceoverId.removePrefix("consumet_")
-                                    consumetRepository.getEpisodes(consumetAnimeId).collect { cResult ->
-                                        if (cResult is NetworkResult.Success && cResult.data.isNotEmpty()) {
-                                            val cEp = cResult.data.find { it.id == episodeId } ?: cResult.data.firstOrNull()
-                                            if (cEp != null) {
-                                                updateState { copy(allEpisodes = cResult.data) }
-                                                initialize(cEp, release.name.main, release.id, release.poster?.fullUrl)
-                                                return@collect
-                                            }
+                                    if (targetFile != null) {
+                                        val filePath = if (targetFile.path.isNotBlank()) {
+                                            java.io.File(t.saveDirectory, targetFile.path).absolutePath
+                                        } else {
+                                            java.io.File(t.saveDirectory, targetFile.name).absolutePath
                                         }
-                                    }
-                                }
-
-                                kodikRepository.getEpisodes(
-                                    shikimoriId = null,
-                                    malId = release.malId?.toLong(),
-                                    translationId = translationId,
-                                    kodikId = null
-                                ).collect { kodikResult ->
-                                    if (kodikResult is NetworkResult.Success && kodikResult.data.isNotEmpty()) {
-                                        val kEp = kodikResult.data.find { it.id == episodeId }
-                                            ?: kodikResult.data.firstOrNull()
-                                        if (kEp != null) {
-                                            android.util.Log.d("PlayerVM", "Found Kodik episode: id=${kEp.id}, name=${kEp.name}")
-                                            updateState { copy(allEpisodes = kodikResult.data) }
-                                            initialize(kEp, release.name.main, release.id, release.poster?.fullUrl)
+                                        val localFile = java.io.File(filePath)
+                                        if (localFile.exists() && localFile.length() > 1024L) {
+                                            val fileUri = "file://$filePath"
+                                            val torrentEp = Episode(
+                                                id = t.titleId * 100000L + (targetFile.episodeNumber ?: (targetFile.index + 1)),
+                                                releaseEpisodeId = "torrent_${t.id}_${targetFile.index}",
+                                                name = if (targetFile.episodeNumber != null) "Серия ${targetFile.episodeNumber}" else targetFile.name,
+                                                ordinal = targetFile.episodeNumber ?: (targetFile.index + 1),
+                                                duration = aniLibriaEp?.duration ?: 1440,
+                                                hls480 = fileUri,
+                                                hls720 = fileUri,
+                                                hls1080 = fileUri,
+                                                opening = aniLibriaEp?.opening,
+                                                ending = aniLibriaEp?.ending
+                                            )
+                                            android.util.Log.d("PlayerVM", "Playing local torrent file: $fileUri")
+                                            updateState { copy(allEpisodes = listOf(torrentEp)) }
+                                            initialize(torrentEp, t.titleName, t.titleId, t.posterUrl)
                                             return@collect
                                         }
                                     }
-                                    android.util.Log.w("PlayerVM", "Episode id=$episodeId not found in Kodik either")
-                                    updateState {
-                                        copy(
-                                            isLoading = false,
-                                            isPlaying = false,
-                                            isBuffering = false,
-                                            playbackError = "Серия недоступна или была удалена"
-                                        )
+                                }
+                            }
+
+                            // 3. Если выбрана озвучка Consumet (EN Dub/Sub)
+                            if (savedVoiceoverId?.startsWith("consumet_") == true) {
+                                val consumetAnimeId = savedVoiceoverId.removePrefix("consumet_")
+                                consumetRepository.getEpisodes(consumetAnimeId).collect { cResult ->
+                                    if (cResult is NetworkResult.Success && cResult.data.isNotEmpty()) {
+                                        val targetOrdinal = aniLibriaEp?.ordinal?.toLong() ?: episodeId
+                                        val cEp = cResult.data.find { it.id == episodeId || it.ordinal.toLong() == targetOrdinal }
+                                            ?: cResult.data.firstOrNull()
+                                        if (cEp != null) {
+                                            val streamInfo = consumetRepository.getStreamSource(cEp.releaseEpisodeId)
+                                            val playableEp = if (streamInfo != null) {
+                                                cEp.copy(
+                                                    hls480 = streamInfo.url,
+                                                    hls720 = streamInfo.url,
+                                                    hls1080 = streamInfo.url
+                                                )
+                                            } else cEp
+
+                                            updateState { copy(allEpisodes = cResult.data) }
+                                            initialize(playableEp, release.name.main, release.id, release.poster?.fullUrl)
+                                            return@collect
+                                        }
                                     }
+                                }
+                            }
+
+                            // 4. Если выбрана озвучка Kodik или сторонний episodeId
+                            val translationId = savedVoiceoverId?.removePrefix("kodik_")?.toLongOrNull()
+                            val targetOrdinal = aniLibriaEp?.ordinal?.toLong() ?: episodeId
+
+                            kodikRepository.getEpisodes(
+                                shikimoriId = null,
+                                malId = release.malId?.toLong(),
+                                translationId = translationId,
+                                kodikId = null
+                            ).collect { kodikResult ->
+                                if (kodikResult is NetworkResult.Success && kodikResult.data.isNotEmpty()) {
+                                    val kEp = kodikResult.data.find { it.id == episodeId || it.ordinal.toLong() == targetOrdinal }
+                                        ?: kodikResult.data.firstOrNull()
+                                    if (kEp != null) {
+                                        android.util.Log.d("PlayerVM", "Found Kodik episode: id=${kEp.id}, name=${kEp.name}")
+                                        updateState { copy(allEpisodes = kodikResult.data) }
+                                        initialize(kEp, release.name.main, release.id, release.poster?.fullUrl)
+                                        return@collect
+                                    }
+                                }
+
+                                // Если в сторонних источниках не нашлось, но есть AniLibria
+                                if (aniLibriaEp != null) {
+                                    updateState { copy(allEpisodes = episodes) }
+                                    initialize(aniLibriaEp, release.name.main, release.id, release.poster?.fullUrl)
+                                    return@collect
+                                }
+
+                                updateState {
+                                    copy(
+                                        isLoading = false,
+                                        isPlaying = false,
+                                        isBuffering = false,
+                                        playbackError = "Серия недоступна или была удалена"
+                                    )
                                 }
                             }
                         }
                         is NetworkResult.Error -> {
+                            // Офлайн сценарий: смотрим есть ли сохраненный торрент
+                            val localTorrents = if (numericTitleId != null) {
+                                torrentDownloadDao.getByTitle(numericTitleId).first()
+                            } else emptyList()
+
+                            if (localTorrents.isNotEmpty()) {
+                                val t = localTorrents.first()
+                                val files: List<com.anilibrix.plus.core.torrent.TorrentFileItem> = runCatching {
+                                    json.decodeFromString<List<com.anilibrix.plus.core.torrent.TorrentFileItem>>(t.filesJson)
+                                }.getOrDefault(emptyList())
+                                val selectedFiles = files.filter { it.selected }
+                                if (selectedFiles.isNotEmpty()) {
+                                    val eps = selectedFiles.mapIndexed { idx, file ->
+                                        val epNum = file.episodeNumber ?: (idx + 1)
+                                        val filePath = if (file.path.isNotBlank()) {
+                                            java.io.File(t.saveDirectory, file.path).absolutePath
+                                        } else {
+                                            java.io.File(t.saveDirectory, file.name).absolutePath
+                                        }
+                                        Episode(
+                                            id = t.titleId * 100000L + epNum,
+                                            releaseEpisodeId = "torrent_${t.id}_${file.index}",
+                                            name = if (file.episodeNumber != null) "Серия ${file.episodeNumber}" else file.name,
+                                            ordinal = epNum,
+                                            duration = 24 * 60,
+                                            hls480 = "file://$filePath",
+                                            hls720 = "file://$filePath",
+                                            hls1080 = "file://$filePath",
+                                            opening = null,
+                                            ending = null
+                                        )
+                                    }.sortedBy { it.ordinal }
+
+                                    val targetEp = eps.find { it.id == episodeId || it.ordinal.toLong() == episodeId } ?: eps.first()
+                                    updateState { copy(allEpisodes = eps) }
+                                    initialize(targetEp, t.titleName, t.titleId, t.posterUrl)
+                                    return@collect
+                                }
+                            }
+
                             updateState {
                                 copy(
                                     isLoading = false,
@@ -258,6 +376,13 @@ class PlayerViewModel @Inject constructor(
                     selectedSubtitleTrackId = intent.trackId,
                     subtitlesEnabled = intent.trackId != null || externalSubtitleName != null,
                 )
+            }
+            is PlayerIntent.SetAudioTracks -> updateState {
+                val selected = intent.tracks.find { it.isSelected }?.id ?: selectedAudioTrackId ?: intent.tracks.firstOrNull()?.id
+                copy(audioTracks = intent.tracks, selectedAudioTrackId = selected)
+            }
+            is PlayerIntent.SelectAudioTrack -> updateState {
+                copy(selectedAudioTrackId = intent.trackId)
             }
             is PlayerIntent.LoadExternalSubtitles -> updateState {
                 copy(

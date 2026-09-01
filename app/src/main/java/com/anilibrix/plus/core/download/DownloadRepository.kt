@@ -106,16 +106,45 @@ class DownloadRepository @Inject constructor(
         downloadDao.getAll(),
     ) { downloads, metadata ->
         val byId = metadata.associateBy { it.requestId }
-        val items = downloads.mapNotNull { download ->
+        val media3Items = downloads.mapNotNull { download ->
             val meta = byId[download.request.id] ?: return@mapNotNull null
             download.toItem(meta)
-        }.sortedByDescending { it.createdAt }
+        }
 
-        DownloadSummary(items = items, usedBytes = downloadCache.cacheSpace)
+        val torrentItems = metadata
+            .filter { it.requestId.startsWith("torrent:") }
+            .map { meta ->
+                DownloadItem(
+                    requestId = meta.requestId,
+                    titleId = meta.titleId,
+                    titleName = meta.titleName,
+                    posterUrl = meta.posterUrl,
+                    episodeId = meta.episodeId,
+                    episodeNumber = meta.episodeNumber,
+                    episodeName = meta.episodeName,
+                    quality = meta.quality,
+                    state = DownloadState.COMPLETED,
+                    progress = 1.0f,
+                    downloadedBytes = 0L,
+                    totalBytes = null,
+                    createdAt = meta.createdAt
+                )
+            }
+
+        val allItems = (media3Items + torrentItems).sortedByDescending { it.createdAt }
+        DownloadSummary(items = allItems, usedBytes = downloadCache.cacheSpace)
     }
 
     fun observeForTitle(titleId: Long): Flow<Map<Long, DownloadItem>> =
-        summary.map { s -> s.items.filter { it.titleId == titleId }.associateBy { it.episodeId } }
+        summary.map { s ->
+            val titleItems = s.items.filter { it.titleId == titleId }
+            val map = mutableMapOf<Long, DownloadItem>()
+            for (item in titleItems) {
+                map[item.episodeId] = item
+                map[item.episodeNumber.toLong()] = item
+            }
+            map
+        }
 
     /**
      * Ставит серию в очередь.

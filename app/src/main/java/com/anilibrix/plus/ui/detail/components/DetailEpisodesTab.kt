@@ -162,7 +162,7 @@ fun LazyListScope.episodesSection(
         key = { ep -> "ep_${ep.id}" }
     ) { episode ->
         val progress = state.progress.episodes[episode.id]
-        val download = state.downloads[episode.id]
+        val download = state.downloads[episode.id] ?: state.downloads[episode.ordinal.toLong()]
 
         EpisodeCardItem(
             episode = episode,
